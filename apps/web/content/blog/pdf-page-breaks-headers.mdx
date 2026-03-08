@@ -1,0 +1,79 @@
+---
+title: "The Developer's Guide to PDF Page Breaks, Headers, and Footers"
+description: "Master PDF layout with proper page breaks, repeating headers and footers, and dynamic page numbers using DocuForge."
+date: "2026-02-27"
+author: "DocuForge Team"
+category: "Guide"
+readingTime: 7
+---
+
+Page breaks, headers, and footers are the hardest parts of HTML-to-PDF conversion. Here's how to get them right with DocuForge.
+
+## Page Breaks
+
+Control where pages break using CSS:
+
+```css
+/* Force a page break before an element */
+.page-break { page-break-before: always; }
+
+/* Prevent an element from being split across pages */
+.keep-together { page-break-inside: avoid; }
+
+/* Keep a heading with the content that follows */
+h2 { page-break-after: avoid; }
+```
+
+## Headers and Footers
+
+DocuForge supports repeating headers and footers with dynamic content:
+
+```typescript
+const pdf = await docuforge.generate({
+  html: '<h1>My Report</h1><p>Content here...</p>',
+  options: {
+    format: 'A4',
+    headerTemplate: '<div style="font-size:10px;text-align:center;width:100%">My Company</div>',
+    footerTemplate: '<div style="font-size:10px;text-align:center;width:100%">Page {{pageNumber}} of {{totalPages}}</div>',
+    displayHeaderFooter: true,
+    margin: { top: '40mm', bottom: '30mm', left: '20mm', right: '20mm' },
+  },
+});
+```
+
+## Dynamic Page Numbers
+
+Use `{{pageNumber}}` and `{{totalPages}}` in your header or footer templates. DocuForge replaces these with actual values during rendering.
+
+## Using React Components
+
+The `@docuforge/react-pdf` library makes this even easier:
+
+```tsx
+import { Document, Page, Header, Footer } from '@docuforge/react-pdf';
+
+<Document>
+  <Page size="A4" margin="20mm">
+    <Header>
+      <div>Company Name</div>
+    </Header>
+    <div>Page content here...</div>
+    <Footer>
+      <div>Confidential - Page {{pageNumber}} of {{totalPages}}</div>
+    </Footer>
+  </Page>
+</Document>
+```
+
+## Tips for Multi-Page Documents
+
+1. **Use tables wisely** — large tables automatically flow across pages
+2. **Avoid absolute positioning** for content that might span pages
+3. **Test with realistic data** — edge cases appear with real content lengths
+4. **Use `page-break-inside: avoid`** on card-like elements
+
+## Next Steps
+
+- Explore the [Page component API](https://docs.docuforge.dev)
+- Learn about [watermarks](https://docs.docuforge.dev) for draft documents
+- Read about [QR codes and barcodes](https://docs.docuforge.dev) in PDFs

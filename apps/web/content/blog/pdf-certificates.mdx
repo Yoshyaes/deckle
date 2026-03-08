@@ -1,0 +1,65 @@
+---
+title: "Generate PDF Certificates for Your Online Course"
+description: "Automatically generate and deliver personalized PDF certificates when students complete your online course."
+date: "2026-03-07"
+author: "DocuForge Team"
+category: "Tutorial"
+readingTime: 5
+---
+
+Completion certificates add real value to online courses. They motivate students, provide social proof, and make your course feel professional. Here's how to generate them automatically with DocuForge.
+
+## The Template Approach
+
+Create a certificate template once, then fill it with student data for every completion:
+
+```typescript
+const certificate = await docuforge.fromTemplate({
+  templateId: 'tmpl_certificate',
+  data: {
+    studentName: 'Jane Doe',
+    courseName: 'Advanced React Patterns',
+    completionDate: 'March 7, 2026',
+    instructorName: 'John Smith',
+    certificateId: 'CERT-2026-0307-001',
+  },
+});
+```
+
+## Designing the Certificate
+
+Use HTML and CSS to design a certificate that matches your brand. DocuForge supports landscape orientation, custom fonts, background images, and QR codes for verification:
+
+```html
+<div style="text-align: center; padding: 60px;">
+  <h1 style="font-size: 48px; color: #1a1a1a;">Certificate of Completion</h1>
+  <p style="font-size: 24px; margin-top: 40px;">{{studentName}}</p>
+  <p>has successfully completed</p>
+  <p style="font-size: 28px; font-weight: bold;">{{courseName}}</p>
+  <p>{{completionDate}}</p>
+  {{qr:https://verify.example.com/{{certificateId}}}}
+</div>
+```
+
+## Batch Generation
+
+For course cohorts, use DocuForge's batch API to generate all certificates at once:
+
+```typescript
+const batch = await docuforge.batch({
+  templateId: 'tmpl_certificate',
+  items: students.map(s => ({
+    data: { studentName: s.name, courseName, completionDate, certificateId: s.certId },
+  })),
+});
+```
+
+## Verification with QR Codes
+
+The `{{qr:url}}` placeholder renders a QR code that links to a verification page. Students can share their certificates and recipients can verify authenticity by scanning the code.
+
+## Next Steps
+
+- Add certificates to your LMS webhook flow
+- Store certificate records in your database for verification
+- Let students download certificates from their dashboard

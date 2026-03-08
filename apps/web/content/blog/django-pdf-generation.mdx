@@ -1,0 +1,70 @@
+---
+title: "Django PDF Generation Made Simple"
+description: "Add PDF generation to your Django application with the DocuForge Python SDK. No wkhtmltopdf, no ReportLab, no complexity."
+date: "2026-02-28"
+author: "DocuForge Team"
+category: "Python"
+readingTime: 5
+---
+
+Django developers have suffered with wkhtmltopdf and ReportLab for too long. DocuForge's Python SDK makes PDF generation as simple as calling an API.
+
+## Install
+
+```bash
+pip install docuforge
+```
+
+## Add to Your Django View
+
+```python
+from django.http import JsonResponse
+from docuforge import DocuForge
+
+client = DocuForge(settings.DOCUFORGE_API_KEY)
+
+def generate_invoice(request, order_id):
+    order = Order.objects.get(id=order_id)
+
+    pdf = client.generate(
+        html=render_to_string('invoices/template.html', {'order': order}),
+        options={"format": "A4", "margin": "20mm"},
+    )
+
+    return JsonResponse({"url": pdf.url})
+```
+
+## Using Django Templates
+
+The best part: you can use your existing Django templates. Render them to HTML with `render_to_string`, then pass the HTML to DocuForge. Your existing template tags, filters, and includes all work.
+
+## Using DocuForge Templates
+
+For production, store templates in DocuForge and pass data directly:
+
+```python
+pdf = client.from_template(
+    template_id="tmpl_django_invoice",
+    data={
+        "order_number": order.number,
+        "customer": order.customer.name,
+        "items": list(order.items.values("name", "quantity", "price")),
+        "total": str(order.total),
+    },
+)
+```
+
+## Comparison: DocuForge vs wkhtmltopdf
+
+| Aspect | wkhtmltopdf | DocuForge |
+|--------|-------------|-----------|
+| Install | System binary, version conflicts | `pip install docuforge` |
+| CSS support | Webkit circa 2012 | Modern Chromium |
+| Maintenance | Abandoned project | Actively maintained |
+| Scaling | Single process | API scales automatically |
+
+## Next Steps
+
+- Read the [Django guide](https://docs.docuforge.dev/guides/django)
+- Explore [template management](https://docs.docuforge.dev/api-reference/templates)
+- Set up a [Django management command](https://docs.docuforge.dev) for batch report generation

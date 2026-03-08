@@ -1,0 +1,86 @@
+---
+title: Django Guide
+description: Generate PDFs in your Django app with DocuForge.
+---
+
+# Generate PDFs in Django
+
+Add PDF generation to a Django application.
+
+## 1. Install
+
+```bash
+pip install docuforge
+```
+
+## 2. Configure
+
+Add your API key to settings:
+
+```python
+# settings.py
+DOCUFORGE_API_KEY = os.environ.get("DOCUFORGE_API_KEY")
+```
+
+## 3. Create Views
+
+```python
+# views.py
+import json
+from django.conf import settings
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from docuforge import DocuForge
+
+df = DocuForge(settings.DOCUFORGE_API_KEY)
+
+
+@csrf_exempt
+def generate_pdf(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    body = json.loads(request.body)
+    pdf = df.generate(
+        html=body["html"],
+        options=body.get("options", {"format": "A4"}),
+    )
+    return JsonResponse({
+        "id": pdf.id,
+        "url": pdf.url,
+        "pages": pdf.pages,
+    })
+
+
+def download_invoice(request, invoice_id):
+    invoice = Invoice.objects.get(id=invoice_id)
+
+    pdf = df.from_template(
+        template="tmpl_invoice_v2",
+        data={
+            "company": invoice.customer_name,
+            "items": list(invoice.items.values("description", "qty", "rate")),
+            "total": str(invoice.total),
+        },
+        output="base64",
+    )
+
+    import base64
+    content = base64.b64decode(pdf.data)
+    response = HttpResponse(content, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="invoice-{invoice_id}.pdf"'
+    return response
+```
+
+## 4. URL Configuration
+
+```python
+# urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("api/generate/", views.generate_pdf),
+    path("api/invoices/<int:invoice_id>/download/", views.download_invoice),
+]
+```

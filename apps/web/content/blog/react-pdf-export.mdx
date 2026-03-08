@@ -1,0 +1,75 @@
+---
+title: "How to Add PDF Export to Any React App"
+description: "Add a 'Download as PDF' button to your React application using DocuForge's React components and SDK."
+date: "2026-03-06"
+author: "DocuForge Team"
+category: "React"
+readingTime: 5
+---
+
+Every React app eventually needs a "Download as PDF" button. Reports, invoices, certificates, dashboards — users expect to export data as PDFs. Here's how to add it in minutes.
+
+## Install
+
+```bash
+npm install docuforge @docuforge/react-pdf
+```
+
+## Build Your PDF with React Components
+
+DocuForge provides React components specifically designed for PDF documents:
+
+```tsx
+import { Document, Page, Header, Table } from '@docuforge/react-pdf';
+
+function InvoicePdf({ invoice }) {
+  return (
+    <Document title={`Invoice ${invoice.number}`}>
+      <Page size="A4" margin="20mm">
+        <Header>
+          <h1>Invoice {invoice.number}</h1>
+        </Header>
+        <Table
+          data={invoice.items}
+          columns={[
+            { key: 'name', header: 'Item' },
+            { key: 'quantity', header: 'Qty', align: 'center' },
+            { key: 'price', header: 'Price', align: 'right' },
+          ]}
+          striped
+        />
+        <p><strong>Total: ${invoice.total}</strong></p>
+      </Page>
+    </Document>
+  );
+}
+```
+
+## Add the Download Button
+
+Create a button that calls DocuForge's API to render your React component as a PDF:
+
+```typescript
+async function downloadPdf() {
+  const response = await fetch('/api/generate-pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ invoiceId: invoice.id }),
+  });
+  const { url } = await response.json();
+  window.open(url, '_blank');
+}
+```
+
+## Why React Components for PDFs?
+
+- **Reuse your existing design system** — same components, same styling
+- **Type safety** — TypeScript props for every component
+- **Familiar API** — if you know React, you know how to build PDFs
+- **Print-optimized** — components handle page breaks, margins, and headers automatically
+
+## Next Steps
+
+- Explore all [React PDF components](https://docs.docuforge.dev)
+- Add [watermarks](https://docs.docuforge.dev) for draft documents
+- Set up [batch generation](https://docs.docuforge.dev/api-reference/generate) for bulk exports

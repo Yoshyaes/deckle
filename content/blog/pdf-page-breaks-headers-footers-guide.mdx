@@ -1,0 +1,516 @@
+---
+title: "The Developer's Guide to PDF Page Breaks, Headers, and Footers"
+description: "Master CSS page breaks, repeating headers and footers, page numbers, and multi-page layout for pixel-perfect PDFs with DocuForge."
+slug: "pdf-page-breaks-headers-footers-guide"
+date: "2026-04-07"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["page-layout", "pdf-generation", "html-to-pdf", "tutorial"]
+readingTime: "11 min read"
+---
+
+# The Developer's Guide to PDF Page Breaks, Headers, and Footers
+
+If you have ever generated a multi-page PDF from HTML, you already know the pain. A table row splits across two pages. A section heading dangles at the bottom of a page with no content after it. The footer overlaps your body text. Page numbers are nowhere to be found.
+
+Page breaks, headers, and footers are the number one pain point in HTML-to-PDF generation. The web was designed for continuous scrolling, not discrete pages. When you force HTML into a paged medium, you need a different set of CSS properties and rendering strategies than what you use for browser layout.
+
+This guide covers everything you need to control multi-page PDF layout with DocuForge. You will learn the CSS properties that govern page breaks, how to configure repeating headers and footers with page numbers, how to handle tables that span multiple pages, and how to avoid the most common pitfalls. Every technique works with DocuForge's Chromium-based rendering engine, and all code examples use the DocuForge SDK directly.
+
+## Page Breaks: The CSS Properties
+
+Chromium supports a set of CSS properties specifically designed for paged media. These are the properties you need to control where pages begin and end in your generated PDFs.
+
+### Forcing a Page Break
+
+The `break-before` and `break-after` properties insert a page break before or after an element. This is how you force content onto a new page.
+
+```html
+<div class="cover-page">
+  <h1>Annual Report 2026</h1>
+  <p>Acme Corporation</p>
+</div>
+<!-- Force a new page after the cover -->
+<div style="break-after: page;"></div>
+
+<div class="table-of-contents">
+  <h2>Table of Contents</h2>
+  <!-- ... -->
+</div>
+```
+
+A common pattern is to define a reusable utility class:
+
+```css
+.page-break {
+  break-after: page;
+}
+```
+
+Then drop `<div class="page-break"></div>` anywhere you want a forced break. Simple and predictable.
+
+### Preventing a Page Break
+
+The `break-inside: avoid` property tells Chromium not to split an element across two pages. This is critical for keeping logical units together.
+
+```css
+.card {
+  break-inside: avoid;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 12px;
+}
+```
+
+When Chromium encounters an element with `break-inside: avoid`, it will push the entire element to the next page if it does not fit on the current one.
+
+### Controlling Text Flow with Orphans and Widows
+
+The `orphans` and `widows` properties control how many lines of a paragraph must appear at the bottom or top of a page, respectively. Without these, you get single lines stranded across page breaks.
+
+```css
+p {
+  orphans: 3;
+  widows: 3;
+}
+```
+
+This ensures at least three lines of any paragraph appear at the bottom of a page before a break, and at least three lines appear at the top of the next page. Set these globally in your PDF stylesheet to avoid awkward text splits.
+
+Here is a complete example that combines all three techniques:
+
+```typescript
+import DocuForge from "docuforge";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+const result = await df.generate({
+  html: `
+    <style>
+      .page-break { break-after: page; }
+      .no-break { break-inside: avoid; }
+      p { orphans: 3; widows: 3; }
+    </style>
+    <div class="no-break">
+      <h2>Section One</h2>
+      <p>This section stays together on a single page.</p>
+    </div>
+    <div class="page-break"></div>
+    <div class="no-break">
+      <h2>Section Two</h2>
+      <p>This starts on a new page.</p>
+    </div>
+  `,
+  options: {
+    format: "A4",
+    margin: { top: "20mm", right: "20mm", bottom: "20mm", left: "20mm" },
+  },
+});
+```
+
+## Keeping Tables Together
+
+Tables are the worst offenders for bad page breaks. Without intervention, Chromium will split a table row across two pages, cutting text in half and making the output unreadable.
+
+### Preventing Mid-Row Splits
+
+Apply `break-inside: avoid` to each table row to prevent Chromium from splitting a row across pages:
+
+```css
+tr {
+  break-inside: avoid;
+}
+```
+
+This works well for tables with short rows. If a single row is taller than the page, Chromium has no choice but to split it, so keep your row content reasonable.
+
+### Repeating Table Headers Across Pages
+
+When a table spans multiple pages, readers lose context without column headers. CSS provides a mechanism for this:
+
+```css
+thead {
+  display: table-header-group;
+}
+```
+
+Chromium will repeat the `<thead>` content at the top of each page where the table continues. This is the single most important CSS rule for long tables in PDFs.
+
+Here is a complete invoice table example:
+
+```typescript
+const invoiceHtml = `
+  <style>
+    table { width: 100%; border-collapse: collapse; font-family: sans-serif; }
+    thead { display: table-header-group; }
+    th { background: #1f2937; color: white; padding: 10px; text-align: left; }
+    td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
+    tr { break-inside: avoid; }
+  </style>
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Quantity</th>
+        <th>Unit Price</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${lineItems.map(item => `
+        <tr>
+          <td>${item.name}</td>
+          <td>${item.quantity}</td>
+          <td>$${item.unitPrice.toFixed(2)}</td>
+          <td>$${(item.quantity * item.unitPrice).toFixed(2)}</td>
+        </tr>
+      `).join("")}
+    </tbody>
+  </table>
+`;
+
+const result = await df.generate({
+  html: invoiceHtml,
+  options: { format: "A4", margin: "20mm" },
+});
+```
+
+### Splitting Into Multiple Tables
+
+For very long tables or tables with complex layouts, consider splitting them into separate `<table>` elements per logical section, each with its own `<thead>`. This gives you explicit control over where breaks happen and avoids edge cases with Chromium's table-splitting behavior.
+
+## Headers via DocuForge Options
+
+DocuForge supports repeating headers on every page of your PDF through the `options.header` property. This header renders inside the top margin area and supports dynamic page number interpolation.
+
+### Basic Header
+
+The header is an HTML string. All styles must be inline because external stylesheets and `<style>` blocks are not available in the header context.
+
+```typescript
+const result = await df.generate({
+  html: "<h1>My Document Content</h1><p>...</p>",
+  options: {
+    format: "A4",
+    margin: { top: "1in", right: "0.5in", bottom: "1in", left: "0.5in" },
+    header: `
+      <div style="font-size: 10px; color: #6b7280; width: 100%;
+                  padding: 0 0.5in; display: flex; justify-content: space-between;">
+        <span>Acme Corporation</span>
+        <span>Confidential</span>
+      </div>
+    `,
+  },
+});
+```
+
+### Page Numbers in Headers
+
+Use `{{pageNumber}}` and `{{totalPages}}` inside your header HTML. DocuForge interpolates these values for each page during rendering.
+
+```typescript
+header: `
+  <div style="font-size: 9px; color: #9ca3af; text-align: right;
+              padding: 0 0.5in; width: 100%;">
+    Page {{pageNumber}} of {{totalPages}}
+  </div>
+`,
+```
+
+### Header with Logo and Company Name
+
+You can include images in headers using base64-encoded data URIs or publicly accessible URLs:
+
+```typescript
+header: `
+  <div style="display: flex; align-items: center; padding: 0 0.5in;
+              width: 100%; font-family: sans-serif;">
+    <img src="https://example.com/logo.png" style="height: 20px; margin-right: 8px;" />
+    <span style="font-size: 11px; font-weight: bold; color: #111827;">Acme Corp</span>
+    <span style="margin-left: auto; font-size: 9px; color: #6b7280;">
+      Generated on March 7, 2026
+    </span>
+  </div>
+`,
+```
+
+## Footers via DocuForge Options
+
+Footers work exactly like headers but render inside the bottom margin area. Use `options.footer` with the same HTML string approach.
+
+### Page X of Y Footer
+
+The most common footer pattern is a centered page counter:
+
+```typescript
+const result = await df.generate({
+  html: reportHtml,
+  options: {
+    format: "Letter",
+    margin: { top: "1in", right: "0.75in", bottom: "1in", left: "0.75in" },
+    footer: `
+      <div style="font-size: 9px; color: #6b7280; text-align: center;
+                  width: 100%; padding: 0 0.75in;">
+        Page {{pageNumber}} of {{totalPages}}
+      </div>
+    `,
+  },
+});
+```
+
+### Footer with Multiple Elements
+
+Footers can contain copyright notices, document identifiers, and page numbers together:
+
+```typescript
+footer: `
+  <div style="font-size: 8px; color: #9ca3af; width: 100%;
+              padding: 0 0.75in; display: flex; justify-content: space-between;
+              font-family: sans-serif; border-top: 1px solid #e5e7eb; padding-top: 4px;">
+    <span>&copy; 2026 Acme Corporation. All rights reserved.</span>
+    <span>DOC-2026-0342</span>
+    <span>{{pageNumber}} / {{totalPages}}</span>
+  </div>
+`,
+```
+
+Keep footer content concise. You have limited vertical space in the margin area, and cramming too much in will cause overlap or clipping.
+
+## Margin Configuration for Headers and Footers
+
+This is the most common source of frustration with PDF headers and footers: they render inside the margin area. If your margins are too small, the header or footer will overlap your body content.
+
+### Setting Sufficient Margins
+
+When using headers and footers, you need to set margins large enough to contain them. A safe starting point is `1in` (roughly 25mm) for the top and bottom margins:
+
+```typescript
+options: {
+  format: "A4",
+  margin: {
+    top: "1in",    // Space for header
+    right: "0.5in",
+    bottom: "1in", // Space for footer
+    left: "0.5in",
+  },
+  header: `<div style="font-size: 10px; padding: 0 0.5in;">Header text</div>`,
+  footer: `<div style="font-size: 10px; padding: 0 0.5in;">Footer text</div>`,
+}
+```
+
+### What Happens When Margins Are Too Small
+
+If you set `margin.top` to `10mm` but your header content is 15mm tall, the header will overlap the top of your body content. The same applies to footers and `margin.bottom`. There is no error or warning; the content simply renders on top of itself.
+
+A rule of thumb: measure or estimate the height of your header/footer content, then add at least 5mm of padding. For a simple one-line header at 10px font size, `20mm` is usually sufficient. For headers with logos or multiple lines, use `25mm` or `1in`.
+
+## React Component Approach
+
+If you prefer a component-based workflow, the `@docuforge/react` library provides `Document`, `Page`, `Header`, and `Footer` components that handle page breaks and positioning for you.
+
+### Basic Multi-Page Document
+
+The `Page` component automatically applies `break-after: page` between pages. The `Footer` component is absolutely positioned at the bottom of each page.
+
+```tsx
+import { Document, Page, Header, Footer } from "@docuforge/react";
+
+function AnnualReport({ data }) {
+  return (
+    <Document>
+      <Page size="A4" margin="25mm">
+        <Header>
+          <div style={{ display: "flex", justifyContent: "space-between",
+                        fontSize: "10px", color: "#6b7280" }}>
+            <span>Acme Corporation</span>
+            <span>Annual Report 2026</span>
+          </div>
+        </Header>
+
+        <h1 style={{ fontSize: "28px", marginTop: "40px" }}>Annual Report</h1>
+        <p>{data.summary}</p>
+
+        <Footer>
+          <div style={{ textAlign: "center", fontSize: "9px", color: "#9ca3af" }}>
+            Confidential
+          </div>
+        </Footer>
+      </Page>
+
+      <Page size="A4" margin="25mm">
+        <Header>
+          <div style={{ fontSize: "10px", color: "#6b7280" }}>
+            Financial Overview
+          </div>
+        </Header>
+
+        <h2>Financial Overview</h2>
+        <p>{data.financials}</p>
+
+        <Footer>
+          <div style={{ textAlign: "center", fontSize: "9px", color: "#9ca3af" }}>
+            Page 2
+          </div>
+        </Footer>
+      </Page>
+    </Document>
+  );
+}
+```
+
+### Generating the PDF
+
+Pass the React component to `df.generate()` using the `react` source:
+
+```typescript
+import DocuForge from "docuforge";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+const result = await df.generate({
+  html: renderToString(<AnnualReport data={reportData} />),
+  options: {
+    format: "A4",
+    printBackground: true,
+  },
+});
+```
+
+The `Page` component handles break insertion so you do not need to manage `break-after: page` manually. Each `Page` is a self-contained unit with its own header, footer, and margin configuration.
+
+## Multi-Page Document Patterns
+
+There are three fundamental patterns for structuring multi-page PDFs. Choosing the right one depends on whether your content length is fixed or dynamic.
+
+### Pattern 1: Fixed Pages (Certificates, Letters)
+
+When each logical page maps to exactly one physical page, use one `Page` component (or one `<div>` with `break-after: page`) per page. This is typical for certificates, award letters, or form-based documents.
+
+```html
+<div class="certificate" style="break-after: page; height: 100%; position: relative;">
+  <h1 style="text-align: center; margin-top: 200px;">Certificate of Completion</h1>
+  <p style="text-align: center; font-size: 24px;">Awarded to: Jane Smith</p>
+  <p style="position: absolute; bottom: 40px; width: 100%; text-align: center;">
+    Issued March 7, 2026
+  </p>
+</div>
+
+<div class="certificate" style="height: 100%; position: relative;">
+  <h1 style="text-align: center; margin-top: 200px;">Certificate of Completion</h1>
+  <p style="text-align: center; font-size: 24px;">Awarded to: John Doe</p>
+  <p style="position: absolute; bottom: 40px; width: 100%; text-align: center;">
+    Issued March 7, 2026
+  </p>
+</div>
+```
+
+### Pattern 2: Flowing Content (Reports, Documentation)
+
+When content length is dynamic, let Chromium handle page breaks naturally. Use `break-inside: avoid` on key elements and set `orphans`/`widows` for paragraphs, but do not try to force every break manually.
+
+```html
+<style>
+  h2 { break-after: avoid; } /* Keep headings with their content */
+  .section { break-inside: avoid; }
+  p { orphans: 3; widows: 3; }
+  table tr { break-inside: avoid; }
+  thead { display: table-header-group; }
+</style>
+
+<h1>Q1 2026 Performance Report</h1>
+<p>Executive summary content that flows naturally across pages...</p>
+
+<h2>Revenue Analysis</h2>
+<div class="section">
+  <p>Revenue grew 24% year-over-year...</p>
+  <table><!-- Long data table --></table>
+</div>
+
+<h2>Customer Metrics</h2>
+<div class="section">
+  <p>Net promoter score reached an all-time high...</p>
+</div>
+```
+
+The key rule for flowing content: use `break-after: avoid` on headings so they never appear stranded at the bottom of a page without the content that follows them.
+
+### Pattern 3: Hybrid (Cover + Flowing Content)
+
+Most real-world documents combine fixed and flowing pages. A cover page, a table of contents, and then flowing report content.
+
+```typescript
+const result = await df.generate({
+  html: `
+    <style>
+      .cover { height: 100vh; display: flex; flex-direction: column;
+               justify-content: center; align-items: center; break-after: page; }
+      .toc { break-after: page; }
+      h2 { break-after: avoid; }
+      .section { break-inside: avoid; }
+      p { orphans: 3; widows: 3; }
+    </style>
+
+    <div class="cover">
+      <h1>Annual Report 2026</h1>
+      <p>Acme Corporation</p>
+    </div>
+
+    <div class="toc">
+      <h2>Table of Contents</h2>
+      <ul>
+        <li>Executive Summary ........... 3</li>
+        <li>Financial Overview .......... 5</li>
+        <li>Product Roadmap ............. 8</li>
+      </ul>
+    </div>
+
+    <h2>Executive Summary</h2>
+    <p>${executiveSummary}</p>
+
+    <h2>Financial Overview</h2>
+    <div class="section">${financialContent}</div>
+  `,
+  options: {
+    format: "A4",
+    margin: { top: "1in", right: "0.75in", bottom: "1in", left: "0.75in" },
+    printBackground: true,
+    header: `
+      <div style="font-size: 9px; color: #9ca3af; text-align: right;
+                  width: 100%; padding: 0 0.75in;">
+        Acme Corporation | Annual Report 2026
+      </div>
+    `,
+    footer: `
+      <div style="font-size: 9px; color: #9ca3af; text-align: center;
+                  width: 100%; padding: 0 0.75in;">
+        Page {{pageNumber}} of {{totalPages}}
+      </div>
+    `,
+  },
+});
+```
+
+## Common Pitfalls and Debugging
+
+These are the issues that trip up nearly every developer working with PDF page layout for the first time.
+
+**`break-inside: avoid` on tall elements creates blank pages.** If an element with `break-inside: avoid` is taller than a single page, Chromium cannot fit it anywhere. It pushes the element to the next page, leaving the current page blank, and then splits it anyway. The fix: only apply `break-inside: avoid` to elements that you know will fit on a single page. For tall content, let it flow naturally.
+
+**Forgetting `printBackground: true`.** By default, Chromium strips background colors and images when generating PDFs. If your design uses background colors for headers, cards, or table rows, you will get a blank white document unless you set `printBackground: true` in your options.
+
+**Using `position: fixed` for repeating content.** In browser rendering, `position: fixed` pins an element to the viewport. In paged media, it does not repeat on every page. It only appears once, usually on the first page. Use `options.header` and `options.footer` for content that must repeat. That is what they are designed for.
+
+**Images forcing unexpected page breaks.** Large images can push content to the next page if they do not fit. Add `max-width: 100%` and `break-inside: avoid` to image containers, and consider setting explicit heights to prevent layout surprises.
+
+**External CSS in headers and footers.** Stylesheet links and `<style>` blocks do not work inside `options.header` and `options.footer`. All styling must be inline. This is a Chromium limitation, not a DocuForge limitation.
+
+## Going Further
+
+This guide covered the core techniques for controlling page layout in HTML-to-PDF generation. For framework-specific implementations, check out these tutorials:
+
+- [Generate PDFs in Next.js with DocuForge](/blog/generate-pdfs-nextjs-docuforge) for a complete Next.js integration
+- [Build a Stripe Invoice System](/blog/invoice-system-stripe-docuforge) for multi-page invoice generation with page numbers
+- [Generate Report PDFs from Supabase Data](/blog/generate-report-pdfs-supabase-data) for data-driven flowing reports
+- [Python PDF Generation with FastAPI](/blog/pdf-generation-python-fastapi-docuforge) for server-side generation in Python
+
+All of these build on the page break, header, and footer techniques covered here. Start with the pattern that matches your use case, and adjust margins and break rules until the output is exactly what you need.

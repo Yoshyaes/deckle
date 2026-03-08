@@ -1,0 +1,51 @@
+{
+  "name": "@docuforge/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup src/index.ts --format esm --dts",
+    "start": "node dist/index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:seed": "tsx src/scripts/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3",
+    "@hono/node-server": "^1",
+    "bcryptjs": "^2",
+    "bullmq": "^5.70.1",
+    "dotenv": "^16",
+    "drizzle-orm": "^0.30",
+    "handlebars": "^4",
+    "hono": "^4",
+    "ioredis": "^5",
+    "nanoid": "^5",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.18.0",
+    "playwright": "^1",
+    "qrcode": "^1.5.4",
+    "stripe": "^17",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "esbuild": "^0.27.3",
+    "zod": "^3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2",
+    "@types/node": "^20",
+    "@types/pg": "^8.16.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "drizzle-kit": "^0.21",
+    "tsup": "^8",
+    "tsx": "^4",
+    "typescript": "^5.4",
+    "vitest": "^4.0.18"
+  }
+}

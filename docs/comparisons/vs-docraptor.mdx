@@ -1,0 +1,79 @@
+---
+title: "DocuForge vs DocRaptor"
+description: "Compare DocuForge and DocRaptor for PDF generation"
+---
+
+# DocuForge vs DocRaptor
+
+DocRaptor is one of the longest-running PDF generation APIs, powered by the PrinceXML engine. DocuForge uses headless Chromium for rendering, giving you full CSS3 support with a modern developer experience.
+
+## Feature Comparison
+
+| Feature | DocuForge | DocRaptor |
+|---------|-----------|-----------|
+| **Rendering engine** | Chromium (Playwright) | PrinceXML |
+| **CSS support** | Full CSS3 (Grid, Flexbox, variables) | CSS3 (some limitations with Grid) |
+| **Free tier** | 1,000 PDFs/month | 5 test PDFs/month (watermarked) |
+| **Pricing** | From $29/mo (10K PDFs) | From $15/mo (125 PDFs) |
+| **Price per PDF** | $0.003-0.005 overage | $0.03-0.12 per doc |
+| **SDKs** | TypeScript, Python, Go, Ruby | Ruby, Python, Node, PHP, Java |
+| **React-to-PDF** | Native | Not supported |
+| **Template engine** | Visual editor + Handlebars | Not included |
+| **Batch generation** | Built-in API endpoint | Manual iteration |
+| **Visual template editor** | Yes | No |
+| **MCP server (AI agents)** | Yes | No |
+| **QR codes / Barcodes** | Built-in | Requires external generation |
+| **Self-hosted option** | Docker image available | No |
+
+## Pricing Comparison
+
+| Volume | DocuForge | DocRaptor |
+|--------|-----------|-----------|
+| 1,000 PDFs/mo | **Free** | $15/mo |
+| 5,000 PDFs/mo | **$29/mo** | $59/mo |
+| 25,000 PDFs/mo | **$99/mo** | $149/mo+ |
+| 100,000 PDFs/mo | **$99/mo** | Custom |
+
+## Code Comparison
+
+### DocRaptor
+
+```javascript
+const DocRaptor = require('docraptor');
+const client = new DocRaptor.DocApi();
+client.apiClient.authentications.basicAuth.username = 'YOUR_API_KEY';
+
+const response = await client.createDoc({
+  name: 'invoice.pdf',
+  document_type: 'pdf',
+  document_content: htmlContent,
+  test: false,
+});
+```
+
+### DocuForge
+
+```typescript
+import { DocuForge } from 'docuforge';
+const df = new DocuForge('df_live_...');
+
+const pdf = await df.generate({
+  html: htmlContent,
+  options: { format: 'A4' },
+});
+
+console.log(pdf.url); // CDN-hosted PDF URL
+```
+
+## When to Choose DocRaptor
+
+- You need PrinceXML-specific CSS features (`@prince-*` rules)
+- You're already using DocRaptor and migration cost is high
+- You need PDF/A compliance (DocRaptor has mature support)
+
+## When to Choose DocuForge
+
+- You want modern CSS3 support (Grid, Flexbox, CSS variables)
+- You need React-to-PDF or template engine support
+- You want a generous free tier and transparent per-PDF pricing
+- You need AI agent integration (MCP server)

@@ -1,0 +1,87 @@
+---
+title: FastAPI Guide
+description: Generate PDFs in your FastAPI app with DocuForge.
+---
+
+# Generate PDFs in FastAPI
+
+Add PDF generation to a FastAPI application.
+
+## 1. Install
+
+```bash
+pip install docuforge fastapi uvicorn
+```
+
+## 2. Set Up
+
+```python
+# main.py
+import os
+from fastapi import FastAPI
+from pydantic import BaseModel
+from docuforge import DocuForge
+
+app = FastAPI()
+df = DocuForge(os.environ["DOCUFORGE_API_KEY"])
+
+
+class GenerateRequest(BaseModel):
+    html: str
+    format: str = "A4"
+
+
+class InvoiceData(BaseModel):
+    company: str
+    items: list[dict]
+    total: float
+
+
+@app.post("/api/generate")
+def generate_pdf(req: GenerateRequest):
+    pdf = df.generate(
+        html=req.html,
+        options={"format": req.format, "margin": "1in"},
+    )
+    return {"id": pdf.id, "url": pdf.url, "pages": pdf.pages}
+
+
+@app.post("/api/invoices/pdf")
+def generate_invoice(data: InvoiceData):
+    pdf = df.from_template(
+        template="tmpl_invoice_v2",
+        data=data.model_dump(),
+    )
+    return {"id": pdf.id, "url": pdf.url, "pages": pdf.pages}
+```
+
+## 3. Run
+
+```bash
+DOCUFORGE_API_KEY=df_live_... uvicorn main:app --reload
+```
+
+## 4. Download Endpoint
+
+```python
+import base64
+from fastapi.responses import Response
+
+@app.get("/api/invoices/{invoice_id}/download")
+def download_invoice(invoice_id: str):
+    # Fetch invoice data from your database
+    invoice = get_invoice(invoice_id)
+
+    pdf = df.from_template(
+        template="tmpl_invoice_v2",
+        data=invoice,
+        output="base64",
+    )
+
+    content = base64.b64decode(pdf.data)
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=invoice-{invoice_id}.pdf"},
+    )
+```

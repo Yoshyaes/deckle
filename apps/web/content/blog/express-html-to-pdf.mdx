@@ -1,0 +1,95 @@
+---
+title: "Express.js PDF API: From HTML to PDF in 30 Seconds"
+description: "Build a PDF generation endpoint in Express.js with DocuForge. Three lines of code, zero infrastructure."
+date: "2026-02-26"
+author: "DocuForge Team"
+category: "Node.js"
+readingTime: 4
+---
+
+You need a PDF endpoint in your Express app. Here's the fastest way to build one.
+
+## Install
+
+```bash
+npm install docuforge express
+```
+
+## The Entire Implementation
+
+```typescript
+import express from 'express';
+import DocuForge from 'docuforge';
+
+const app = express();
+const docuforge = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+app.use(express.json());
+
+app.post('/api/pdf', async (req, res) => {
+  const pdf = await docuforge.generate({
+    html: req.body.html,
+    options: req.body.options || { format: 'A4' },
+  });
+  res.json(pdf);
+});
+
+app.listen(3000);
+```
+
+That's it. You now have a PDF generation API.
+
+## Test It
+
+```bash
+curl -X POST http://localhost:3000/api/pdf \
+  -H "Content-Type: application/json" \
+  -d '{"html": "<h1>Hello World</h1>"}'
+```
+
+## Adding Templates
+
+For production use, store your HTML templates and pass dynamic data:
+
+```typescript
+app.post('/api/invoice', async (req, res) => {
+  const pdf = await docuforge.fromTemplate({
+    templateId: 'tmpl_invoice',
+    data: req.body,
+  });
+  res.json(pdf);
+});
+```
+
+## Adding React Component Support
+
+```typescript
+app.post('/api/report', async (req, res) => {
+  const pdf = await docuforge.fromReact({
+    component: req.body.component,
+    props: req.body.props,
+  });
+  res.json(pdf);
+});
+```
+
+## Error Handling
+
+DocuForge throws typed errors you can catch:
+
+```typescript
+app.post('/api/pdf', async (req, res) => {
+  try {
+    const pdf = await docuforge.generate({ html: req.body.html });
+    res.json(pdf);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+```
+
+## Next Steps
+
+- Read the [Express guide](https://docs.docuforge.dev/guides/express)
+- Add [rate limiting](https://docs.docuforge.dev) to your endpoint
+- Set up [batch generation](https://docs.docuforge.dev/api-reference/generate) for bulk operations

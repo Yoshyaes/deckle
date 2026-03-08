@@ -1,0 +1,50 @@
+---
+title: Authentication
+description: How to authenticate with the DocuForge API.
+---
+
+# Authentication
+
+All API requests require a valid API key passed in the `Authorization` header.
+
+## API Keys
+
+API keys start with `df_live_` and are created from the [dashboard](https://app.docuforge.dev/keys).
+
+```bash
+curl -X POST https://api.docuforge.dev/v1/generate \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{"html": "<h1>Hello</h1>"}'
+```
+
+## SDK Authentication
+
+<CodeGroup>
+```typescript TypeScript
+import { DocuForge } from 'docuforge';
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY);
+```
+```python Python
+from docuforge import DocuForge
+df = DocuForge("df_live_...")
+```
+</CodeGroup>
+
+## Security Best Practices
+
+- **Never expose API keys in client-side code** — always use server-side API calls or environment variables
+- **Rotate keys regularly** — create new keys and revoke old ones from the dashboard
+- **Use separate keys for development and production**
+- **Keys are hashed** — we never store your API key in plaintext
+
+## Rate Limits
+
+| Plan | Rate Limit |
+|------|-----------|
+| Free | 10 requests/second |
+| Starter | 100 requests/second |
+| Pro | 100 requests/second |
+| Enterprise | 500 requests/second |
+
+When rate limited, the API returns `429 Too Many Requests` with a `Retry-After` header.

@@ -1,0 +1,77 @@
+---
+title: Templates API
+description: Create, manage, and use reusable PDF templates.
+---
+
+# Templates
+
+Templates let you design reusable PDF layouts with variable slots. Use Handlebars syntax (`{{variable}}`) for dynamic data.
+
+## Create a Template
+
+`POST https://api.docuforge.dev/v1/templates`
+
+```bash
+curl -X POST https://api.docuforge.dev/v1/templates \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Invoice",
+    "html_content": "<h1>Invoice for {{company}}</h1><p>Total: ${{total}}</p>",
+    "schema": {"company": "string", "total": "number"}
+  }'
+```
+
+### Response
+
+```json
+{
+  "id": "tmpl_abc123",
+  "name": "Invoice",
+  "html_content": "<h1>Invoice for {{company}}</h1><p>Total: ${{total}}</p>",
+  "schema": {"company": "string", "total": "number"},
+  "version": 1,
+  "is_public": false,
+  "created_at": "2026-02-24T12:00:00.000Z"
+}
+```
+
+## List Templates
+
+`GET https://api.docuforge.dev/v1/templates`
+
+## Get a Template
+
+`GET https://api.docuforge.dev/v1/templates/:id`
+
+## Update a Template
+
+`PUT https://api.docuforge.dev/v1/templates/:id`
+
+Updates increment the `version` field when `html_content` changes.
+
+## Delete a Template
+
+`DELETE https://api.docuforge.dev/v1/templates/:id`
+
+## Template Syntax
+
+Templates use [Handlebars](https://handlebarsjs.com/) syntax:
+
+```html
+<h1>Invoice for {{company}}</h1>
+
+{{#each items}}
+<tr>
+  <td>{{description}}</td>
+  <td>{{qty}} x ${{rate}}</td>
+  <td>${{amount}}</td>
+</tr>
+{{/each}}
+
+{{#if discount}}
+<p>Discount: {{discount}}%</p>
+{{/if}}
+
+<h2>Total: ${{total}}</h2>
+```

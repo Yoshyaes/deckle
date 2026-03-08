@@ -1,0 +1,465 @@
+---
+title: "PDF Generation in Python (FastAPI + DocuForge)"
+description: "Add PDF generation to your FastAPI app with the DocuForge Python SDK. Build endpoints for HTML-to-PDF, templates, and file downloads."
+slug: "pdf-generation-python-fastapi-docuforge"
+date: "2026-03-17"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["python", "fastapi", "pdf-generation", "tutorial"]
+readingTime: "10 min read"
+---
+
+## Introduction
+
+Python dominates backend development and data pipelines for good reason: its ecosystem is vast, its syntax is readable, and frameworks like FastAPI make building production-grade APIs remarkably straightforward. When those APIs need to produce PDFs -- invoices, reports, shipping labels, compliance documents -- most teams reach for libraries like ReportLab or WeasyPrint, then spend days wrestling with layout quirks and font rendering.
+
+DocuForge takes a different approach. Instead of generating PDFs locally, you send HTML (or a template reference) to the DocuForge API and get back a pixel-perfect PDF. The official Python SDK wraps this workflow with httpx for HTTP transport and Pydantic v2 for response validation, so everything feels native to a modern Python stack.
+
+In this tutorial you will build a FastAPI application with three PDF endpoints: one that converts raw HTML, one that uses a stored template, and one that streams a PDF file download directly to the browser. By the end you will have a working service you can deploy behind any ASGI server.
+
+## Step 1: Install Dependencies
+
+Start by creating a new project directory and installing the three packages you need.
+
+```bash
+mkdir fastapi-pdf && cd fastapi-pdf
+python -m venv .venv && source .venv/bin/activate
+pip install docuforge fastapi uvicorn
+```
+
+Next, set your DocuForge API key as an environment variable. You can grab one from the [DocuForge dashboard](/keys).
+
+```bash
+export DOCUFORGE_API_KEY="df_live_your_key_here"
+```
+
+You will reference this variable throughout the application with `os.environ`. Never hard-code API keys in source files.
+
+## Step 2: Basic HTML-to-PDF Endpoint
+
+Create a file called `main.py` and add the following code. This first endpoint accepts an HTML string in the request body and returns the URL of the generated PDF.
+
+```python
+import os
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from docuforge import DocuForge
+
+app = FastAPI(title="PDF Service")
+
+DOCUFORGE_API_KEY = os.environ["DOCUFORGE_API_KEY"]
+
+
+class GenerateRequest(BaseModel):
+    html: str
+    format: str = "A4"
+    margin: str = "20mm"
+
+
+@app.post("/generate")
+def generate_pdf(req: GenerateRequest):
+    with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+        pdf = df.generate(
+            html=req.html,
+            options={
+                "format": req.format,
+                "margin": req.margin,
+                "printBackground": True,
+            },
+        )
+
+    return {
+        "id": pdf.id,
+        "url": pdf.url,
+        "status": pdf.status,
+        "pages": pdf.pages,
+        "file_size": pdf.file_size,
+        "generation_time_ms": pdf.generation_time_ms,
+    }
+```
+
+A few things to note here. The `DocuForge` client is used as a context manager (`with`), which ensures the underlying httpx connection is properly closed after the request completes. The `options` dictionary maps directly to the Chromium PDF rendering settings that DocuForge supports -- `format`, `margin`, `orientation`, `header`, `footer`, and `printBackground` are the most common.
+
+The response object exposes every field you need for downstream processing. `pdf.url` is a signed URL where the generated file can be downloaded. `pdf.generation_time_ms` is useful for performance monitoring. `pdf.pages` tells you the page count, which matters if you bill clients per page.
+
+Start the server to verify everything works:
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+Test with curl:
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"html": "<h1>Hello from FastAPI</h1><p>Generated at runtime.</p>"}'
+```
+
+You should receive a JSON response containing the PDF URL within a few hundred milliseconds.
+
+## Step 3: Template-Based Generation
+
+Hard-coding HTML in every request works for simple cases, but most production applications use templates. DocuForge templates use Handlebars syntax for variable interpolation, loops, and conditionals. You create a template once, then generate PDFs by passing in data.
+
+First, create a template. You can do this from the dashboard or programmatically:
+
+```python
+with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+    template = df.templates.create(
+        name="invoice",
+        html_content="""
+        <html>
+        <body style="font-family: sans-serif; padding: 40px;">
+            <h1>Invoice #{{invoice_number}}</h1>
+            <p>Bill to: {{customer_name}}</p>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr style="border-bottom: 1px solid #ccc;">
+                    <th style="text-align: left;">Item</th>
+                    <th style="text-align: right;">Amount</th>
+                </tr>
+                {{#each items}}
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td>{{this.description}}</td>
+                    <td style="text-align: right;">${{this.amount}}</td>
+                </tr>
+                {{/each}}
+            </table>
+            <h2 style="text-align: right; margin-top: 20px;">Total: ${{total}}</h2>
+        </body>
+        </html>
+        """,
+        schema={
+            "invoice_number": "string",
+            "customer_name": "string",
+            "items": "array",
+            "total": "number",
+        },
+    )
+    print(f"Template created: {template.id}")
+```
+
+Save the returned template ID (it will look like `tmpl_...`). Now add an endpoint that generates invoices from this template:
+
+```python
+class InvoiceRequest(BaseModel):
+    invoice_number: str
+    customer_name: str
+    items: list[dict]
+    total: float
+
+
+INVOICE_TEMPLATE_ID = "tmpl_your_template_id"
+
+
+@app.post("/invoice")
+def generate_invoice(req: InvoiceRequest):
+    with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+        pdf = df.from_template(
+            template=INVOICE_TEMPLATE_ID,
+            data=req.model_dump(),
+            options={"format": "A4", "margin": "20mm"},
+        )
+
+    return {"id": pdf.id, "url": pdf.url, "pages": pdf.pages}
+```
+
+The Pydantic model validates incoming data before it reaches DocuForge, giving you clear error messages at the API boundary. The `data` parameter accepts a plain dictionary, so `req.model_dump()` converts the validated model directly. This pattern -- Pydantic for validation, DocuForge for rendering -- keeps your endpoint logic minimal.
+
+## Step 4: File Download Endpoint
+
+Sometimes you do not want to redirect the client to a URL. Instead, you want to stream the PDF bytes directly as a file download. DocuForge supports this through the `output="base64"` option, which returns the PDF content as a base64-encoded string instead of a hosted URL.
+
+```python
+import base64
+from fastapi import Response
+
+
+class DownloadRequest(BaseModel):
+    html: str
+    filename: str = "document.pdf"
+
+
+@app.post("/download")
+def download_pdf(req: DownloadRequest):
+    with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+        pdf = df.generate(
+            html=req.html,
+            options={"format": "A4", "margin": "20mm"},
+            output="base64",
+        )
+
+    pdf_bytes = base64.b64decode(pdf.data)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{req.filename}"',
+            "Content-Length": str(len(pdf_bytes)),
+        },
+    )
+```
+
+When `output` is set to `"base64"`, the response object includes a `.data` attribute containing the encoded PDF. You decode it with the standard library `base64.b64decode`, then return it wrapped in a FastAPI `Response` with the appropriate media type and `Content-Disposition` header.
+
+The `Content-Disposition` header controls whether the browser downloads the file (`attachment`) or displays it inline (`inline`). For most API use cases, `attachment` is the right choice. You can also pass the filename through from the client, as shown above.
+
+This approach avoids an extra redirect and works well for internal services, serverless functions, or any context where the client should receive the PDF in a single request-response cycle.
+
+## Step 5: Error Handling
+
+The DocuForge SDK raises specific exception types that map cleanly to HTTP status codes. You should catch these and convert them to FastAPI `HTTPException` responses so your API returns consistent error shapes.
+
+```python
+from docuforge import (
+    AuthenticationError,
+    RateLimitError,
+    ValidationError,
+    DocuForgeError,
+)
+
+
+@app.post("/generate-safe")
+def generate_pdf_safe(req: GenerateRequest):
+    try:
+        with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+            pdf = df.generate(
+                html=req.html,
+                options={"format": req.format, "margin": req.margin},
+            )
+        return {"id": pdf.id, "url": pdf.url}
+
+    except AuthenticationError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid DocuForge API key. Check your DOCUFORGE_API_KEY.",
+        )
+    except RateLimitError:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please retry after a short delay.",
+        )
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid request: {e}",
+        )
+    except DocuForgeError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"PDF generation failed: {e}",
+        )
+```
+
+`AuthenticationError` fires when the API key is missing, malformed, or revoked. `RateLimitError` indicates you have exceeded your plan's per-second request limit. `ValidationError` means the HTML or options you sent were rejected by the API (for example, an unsupported page format). The base `DocuForgeError` catches everything else, including network failures and server errors.
+
+For production services, you may prefer to register these as global exception handlers with FastAPI's `@app.exception_handler` decorator rather than repeating try/except blocks in every endpoint.
+
+## Step 6: Running in an Async Context
+
+The DocuForge Python SDK uses a synchronous httpx client internally. FastAPI endpoints defined with `def` (not `async def`) run in a thread pool automatically, so the synchronous SDK works without blocking the event loop. However, if you need to call DocuForge from an `async def` endpoint -- perhaps because the same endpoint performs other async I/O -- you should offload the synchronous call to an executor.
+
+```python
+import asyncio
+from functools import partial
+
+
+@app.post("/generate-async")
+async def generate_pdf_async(req: GenerateRequest):
+    loop = asyncio.get_event_loop()
+
+    def _generate():
+        with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+            return df.generate(
+                html=req.html,
+                options={"format": req.format, "margin": req.margin},
+            )
+
+    pdf = await loop.run_in_executor(None, _generate)
+
+    return {"id": pdf.id, "url": pdf.url, "pages": pdf.pages}
+```
+
+Passing `None` as the first argument to `run_in_executor` uses the default thread pool executor. The inner `_generate` function runs in a separate thread, keeping the event loop free for other requests.
+
+If you have a high-throughput service and want to avoid the thread pool entirely, you can bypass the SDK and call the DocuForge REST API directly with `httpx.AsyncClient`:
+
+```python
+import httpx
+
+
+async def generate_pdf_native(html: str) -> dict:
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.docuforge.com/v1/generate",
+            headers={"Authorization": f"Bearer {DOCUFORGE_API_KEY}"},
+            json={"html": html, "options": {"format": "A4"}},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return response.json()
+```
+
+This is more verbose but gives you full async control. For most applications, the `run_in_executor` approach is simpler and sufficient.
+
+## Complete Application Code
+
+Here is the consolidated `main.py` with all endpoints, error handling, and the async variant combined into a single runnable file.
+
+```python
+import os
+import base64
+import asyncio
+from fastapi import FastAPI, HTTPException, Response
+from pydantic import BaseModel
+from docuforge import (
+    DocuForge,
+    AuthenticationError,
+    RateLimitError,
+    ValidationError,
+    DocuForgeError,
+)
+
+app = FastAPI(title="PDF Service")
+
+DOCUFORGE_API_KEY = os.environ["DOCUFORGE_API_KEY"]
+INVOICE_TEMPLATE_ID = os.environ.get("INVOICE_TEMPLATE_ID", "tmpl_your_template_id")
+
+
+# --- Request Models ---
+
+class GenerateRequest(BaseModel):
+    html: str
+    format: str = "A4"
+    margin: str = "20mm"
+
+
+class InvoiceRequest(BaseModel):
+    invoice_number: str
+    customer_name: str
+    items: list[dict]
+    total: float
+
+
+class DownloadRequest(BaseModel):
+    html: str
+    filename: str = "document.pdf"
+
+
+# --- Error Handling ---
+
+def handle_docuforge_error(e: Exception):
+    if isinstance(e, AuthenticationError):
+        raise HTTPException(status_code=401, detail="Invalid DocuForge API key.")
+    elif isinstance(e, RateLimitError):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded.")
+    elif isinstance(e, ValidationError):
+        raise HTTPException(status_code=400, detail=f"Invalid request: {e}")
+    elif isinstance(e, DocuForgeError):
+        raise HTTPException(status_code=502, detail=f"PDF generation failed: {e}")
+    raise e
+
+
+# --- Endpoints ---
+
+@app.post("/generate")
+def generate_pdf(req: GenerateRequest):
+    try:
+        with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+            pdf = df.generate(
+                html=req.html,
+                options={
+                    "format": req.format,
+                    "margin": req.margin,
+                    "printBackground": True,
+                },
+            )
+        return {
+            "id": pdf.id,
+            "url": pdf.url,
+            "status": pdf.status,
+            "pages": pdf.pages,
+            "file_size": pdf.file_size,
+            "generation_time_ms": pdf.generation_time_ms,
+        }
+    except (AuthenticationError, RateLimitError, ValidationError, DocuForgeError) as e:
+        handle_docuforge_error(e)
+
+
+@app.post("/invoice")
+def generate_invoice(req: InvoiceRequest):
+    try:
+        with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+            pdf = df.from_template(
+                template=INVOICE_TEMPLATE_ID,
+                data=req.model_dump(),
+                options={"format": "A4", "margin": "20mm"},
+            )
+        return {"id": pdf.id, "url": pdf.url, "pages": pdf.pages}
+    except (AuthenticationError, RateLimitError, ValidationError, DocuForgeError) as e:
+        handle_docuforge_error(e)
+
+
+@app.post("/download")
+def download_pdf(req: DownloadRequest):
+    try:
+        with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+            pdf = df.generate(
+                html=req.html,
+                options={"format": "A4", "margin": "20mm"},
+                output="base64",
+            )
+        pdf_bytes = base64.b64decode(pdf.data)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{req.filename}"',
+                "Content-Length": str(len(pdf_bytes)),
+            },
+        )
+    except (AuthenticationError, RateLimitError, ValidationError, DocuForgeError) as e:
+        handle_docuforge_error(e)
+
+
+@app.post("/generate-async")
+async def generate_pdf_async(req: GenerateRequest):
+    loop = asyncio.get_event_loop()
+
+    def _generate():
+        with DocuForge(api_key=DOCUFORGE_API_KEY) as df:
+            return df.generate(
+                html=req.html,
+                options={"format": req.format, "margin": req.margin},
+            )
+
+    try:
+        pdf = await loop.run_in_executor(None, _generate)
+        return {"id": pdf.id, "url": pdf.url, "pages": pdf.pages}
+    except (AuthenticationError, RateLimitError, ValidationError, DocuForgeError) as e:
+        handle_docuforge_error(e)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+Run the complete application:
+
+```bash
+export DOCUFORGE_API_KEY="df_live_your_key_here"
+uvicorn main:app --reload --port 8000
+```
+
+FastAPI automatically generates interactive API documentation at `http://localhost:8000/docs`, where you can test each endpoint directly from the browser.
+
+## Going Further
+
+This tutorial covered the core patterns for integrating DocuForge into a FastAPI application. From here you can explore several directions:
+
+- **Django integration** -- If your project uses Django rather than FastAPI, the SDK works identically. See our [Django tutorial](/blog/pdf-generation-django-docuforge) for middleware patterns and class-based view examples.
+- **Batch generation** -- The `df.batch()` method queues multiple PDFs for asynchronous processing, which is ideal for monthly invoice runs or report pipelines.
+- **Page layout control** -- Our [page layout guide](/docs/page-layout) covers headers, footers, page numbers, and multi-column layouts in detail.
+- **Comparison with local rendering** -- If you are evaluating DocuForge against Puppeteer or WeasyPrint, the [DocuForge vs Puppeteer](/blog/docuforge-vs-puppeteer) article breaks down the trade-offs in performance, accuracy, and operational overhead.

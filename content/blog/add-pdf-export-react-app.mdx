@@ -1,0 +1,605 @@
+---
+title: "How to Add PDF Export to Any React App"
+description: "Add a 'Download as PDF' button to your React app using DocuForge's fromReact() API and @docuforge/react component library."
+slug: "add-pdf-export-react-app"
+date: "2026-03-28"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["react", "typescript", "pdf-generation", "tutorial"]
+readingTime: "10 min read"
+---
+
+## Introduction
+
+Every data-heavy React application eventually gets the same feature request: "Can I download this as a PDF?" Whether it is an analytics dashboard, an invoice screen, or a student report card, users expect a clean, one-click export that looks just as polished on paper as it does on screen.
+
+DocuForge gives you three ways to satisfy that request, and you can mix them within the same project:
+
+1. **HTML string generation** -- capture rendered HTML from the DOM and send it to `df.generate()`. Fastest to wire up, best for simple pages.
+2. **React component to PDF with `fromReact()`** -- send a JSX/TSX source string along with data as props. The component is rendered server-side by DocuForge, giving you full control over the PDF layout without coupling it to your UI.
+3. **`@docuforge/react` component library** -- purpose-built components like `Document`, `Page`, `Table`, and `Watermark` that map directly to PDF concepts. Combine them with `fromReact()` for pixel-perfect results.
+
+This tutorial walks through all three approaches, building up to a complete dashboard export feature you can drop into any React app.
+
+## Approach 1: HTML String Generation
+
+The simplest path is to grab HTML that is already on the page and send it to DocuForge. This works well when your existing UI is close to what you want the PDF to look like.
+
+### Server API Route
+
+Create an API route that accepts an HTML string and returns a PDF URL:
+
+```ts title="app/api/pdf/route.ts"
+import { DocuForge } from "docuforge";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+export async function POST(req: Request) {
+  const { html } = await req.json();
+
+  const result = await df.generate({
+    html,
+    options: {
+      format: "A4",
+      margin: "20mm",
+      printBackground: true,
+    },
+  });
+
+  return Response.json({ url: result.url });
+}
+```
+
+### Client: Capture and Send
+
+On the client, grab the `innerHTML` of the container you want to export:
+
+```tsx title="components/ExportButton.tsx"
+"use client";
+
+import { useState } from "react";
+
+export function ExportButton({ targetId }: { targetId: string }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleExport() {
+    setLoading(true);
+    const element = document.getElementById(targetId);
+    if (!element) return;
+
+    const res = await fetch("/api/pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ html: element.innerHTML }),
+    });
+
+    const { url } = await res.json();
+    window.open(url, "_blank");
+    setLoading(false);
+  }
+
+  return (
+    <button onClick={handleExport} disabled={loading}>
+      {loading ? "Generating..." : "Export to PDF"}
+    </button>
+  );
+}
+```
+
+This approach has limitations. The captured HTML will not include your bundled CSS unless you inline it, interactive components like dropdowns and tabs will export in whatever state they happen to be in, and responsive layouts designed for wide screens may not translate well to an A4 page. For anything beyond a simple content block, Approach 2 is a better fit.
+
+## Approach 2: React Component to PDF with fromReact()
+
+The `fromReact()` method takes a JSX/TSX source string containing an `export default function` component. DocuForge transpiles the component server-side, injects the `data` object you provide as props, renders it to static HTML, and converts the result to PDF. This means you can write a dedicated PDF layout component that is completely independent of your screen UI.
+
+### Define the PDF Component
+
+Write your component as a plain string. It receives the `data` prop automatically:
+
+```ts title="lib/pdf-templates/sales-report.ts"
+export const salesReportComponent = `
+import React from "react";
+
+export default function SalesReport({ data }) {
+  const { title, rows, generatedAt } = data;
+
+  return (
+    <div style={{ fontFamily: "Helvetica, sans-serif", padding: "40px" }}>
+      <h1 style={{ borderBottom: "2px solid #333", paddingBottom: "8px" }}>
+        {title}
+      </h1>
+      <p style={{ color: "#666", fontSize: "12px" }}>
+        Generated: {generatedAt}
+      </p>
+
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "24px" }}>
+        <thead>
+          <tr style={{ backgroundColor: "#f4f4f4" }}>
+            <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #ddd" }}>Product</th>
+            <th style={{ textAlign: "right", padding: "8px", borderBottom: "1px solid #ddd" }}>Units</th>
+            <th style={{ textAlign: "right", padding: "8px", borderBottom: "1px solid #ddd" }}>Revenue</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+              <td style={{ padding: "8px", borderBottom: "1px solid #eee" }}>{row.product}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid #eee", textAlign: "right" }}>{row.units}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid #eee", textAlign: "right" }}>{row.revenue}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+`;
+```
+
+### Generate the PDF
+
+Pass the component source and data to `fromReact()`:
+
+```ts title="app/api/report/route.ts"
+import { DocuForge } from "docuforge";
+import { salesReportComponent } from "@/lib/pdf-templates/sales-report";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+export async function POST(req: Request) {
+  const { rows } = await req.json();
+
+  const result = await df.fromReact({
+    react: salesReportComponent,
+    data: {
+      title: "Q1 Sales Report",
+      rows,
+      generatedAt: new Date().toLocaleDateString(),
+    },
+    styles: `
+      @page { margin: 20mm; }
+      body { -webkit-print-color-adjust: exact; }
+    `,
+    options: {
+      format: "A4",
+      printBackground: true,
+    },
+  });
+
+  return Response.json({
+    url: result.url,
+    pages: result.pages,
+    generationTime: result.generation_time_ms,
+  });
+}
+```
+
+The key advantage is separation of concerns. Your screen UI can use any component library and layout system you like, while the PDF component is purpose-built for a printed page. You also get server-side rendering out of the box -- no browser required on your end.
+
+## Using @docuforge/react Components
+
+For structured documents with recurring elements like headers, footers, tables, and watermarks, the `@docuforge/react` component library provides pre-built primitives that handle PDF-specific concerns for you.
+
+Install the package:
+
+```bash
+npm install @docuforge/react
+```
+
+### Building a Document
+
+The library is organized around a `Document > Page` hierarchy. Each `Page` maps to a physical page in the output PDF:
+
+```ts title="lib/pdf-templates/invoice.ts"
+export const invoiceComponent = `
+import React from "react";
+import {
+  Document,
+  Page,
+  Header,
+  Footer,
+  Table,
+  Watermark,
+} from "@docuforge/react";
+
+export default function Invoice({ data }) {
+  const { invoiceNumber, customer, items, total, isPaid } = data;
+
+  const columns = [
+    { key: "description", header: "Description", width: "50%" },
+    { key: "quantity", header: "Qty", width: "15%", align: "center" },
+    {
+      key: "unitPrice",
+      header: "Unit Price",
+      width: "15%",
+      align: "right",
+      render: (value) => "$" + value.toFixed(2),
+    },
+    {
+      key: "total",
+      header: "Total",
+      width: "20%",
+      align: "right",
+      render: (value) => "$" + value.toFixed(2),
+    },
+  ];
+
+  return (
+    <Document title={"Invoice " + invoiceNumber}>
+      <Page size="A4" margin="20mm">
+        <Header style={{ borderBottom: "2px solid #333", paddingBottom: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: "24px" }}>INVOICE</h1>
+              <p style={{ margin: "4px 0 0", color: "#666" }}>{invoiceNumber}</p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <strong>Acme Corp</strong>
+              <br />
+              123 Business Ave
+              <br />
+              San Francisco, CA 94102
+            </div>
+          </div>
+        </Header>
+
+        <div style={{ marginTop: "24px" }}>
+          <h3 style={{ marginBottom: "4px" }}>Bill To:</h3>
+          <p>{customer.name}</p>
+          <p style={{ color: "#666" }}>{customer.email}</p>
+        </div>
+
+        <Table
+          data={items}
+          columns={columns}
+          striped
+          bordered
+          style={{ marginTop: "24px" }}
+        />
+
+        <div style={{ textAlign: "right", marginTop: "16px", fontSize: "18px" }}>
+          <strong>Total: ${"{total.toFixed(2)}"}</strong>
+        </div>
+
+        {isPaid && <Watermark text="PAID" color="#22c55e" opacity={0.08} />}
+
+        <Footer style={{ borderTop: "1px solid #eee", paddingTop: "8px", fontSize: "11px", color: "#999" }}>
+          <p>Thank you for your business. Payment due within 30 days.</p>
+        </Footer>
+      </Page>
+    </Document>
+  );
+}
+`;
+```
+
+### Component Breakdown
+
+A few things to note about the components used above:
+
+- **`Document`** wraps the entire output. The `title` prop sets the PDF metadata title. You can also pass a `styles` prop with a global CSS string.
+- **`Page`** defines a single page. The `size` prop accepts `"A4"`, `"Letter"`, or `"Legal"`. The `margin` prop defaults to `"20mm"` and accepts any CSS length value.
+- **`Header`** and **`Footer`** are positioned at the top and bottom of every page. Footer uses absolute positioning to anchor itself to the page bottom.
+- **`Table`** takes a `data` array and a `columns` configuration. Each column specifies a `key` (matching the data field), a `header` label, and optionally `width`, `align`, and a `render` function for custom formatting.
+- **`Watermark`** overlays rotated text across the page. The `opacity` defaults to `0.08` and `angle` to `-45` degrees, producing a subtle diagonal watermark.
+
+## Wire Up the Download Button
+
+With the PDF template defined, you need a client component that triggers the generation and handles the file download. Here is a reusable pattern:
+
+```tsx title="components/DownloadPDFButton.tsx"
+"use client";
+
+import { useState } from "react";
+
+interface DownloadPDFButtonProps {
+  endpoint: string;
+  payload: Record<string, unknown>;
+  filename?: string;
+  children?: React.ReactNode;
+}
+
+export function DownloadPDFButton({
+  endpoint,
+  payload,
+  filename = "document.pdf",
+  children,
+}: DownloadPDFButtonProps) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleDownload() {
+    setLoading(true);
+
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error("PDF generation failed");
+      }
+
+      const { url } = await res.json();
+
+      // Trigger browser download
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Download failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={loading}
+      style={{
+        padding: "8px 16px",
+        backgroundColor: loading ? "#ccc" : "#F97316",
+        color: "#fff",
+        border: "none",
+        borderRadius: "6px",
+        cursor: loading ? "not-allowed" : "pointer",
+        fontSize: "14px",
+      }}
+    >
+      {loading ? "Generating PDF..." : children || "Download PDF"}
+    </button>
+  );
+}
+```
+
+Usage in a page component is straightforward:
+
+```tsx
+<DownloadPDFButton
+  endpoint="/api/report"
+  payload={{ rows: salesData }}
+  filename="Q1-Sales-Report.pdf"
+>
+  Export Sales Report
+</DownloadPDFButton>
+```
+
+The button handles the loading state, error handling, and download trigger. When the user clicks, it sends the data to your API route, receives the PDF URL from DocuForge, and initiates the browser download.
+
+## Styling for PDF
+
+PDF rendering differs from screen rendering in a few important ways. DocuForge uses Chromium under the hood, so standard CSS works, but there are guidelines to follow for reliable output.
+
+### The `styles` Prop
+
+Both `df.generate()` (via `html`) and `df.fromReact()` accept a `styles` prop or inline CSS. When using `fromReact()`, pass a CSS string via the `styles` parameter:
+
+```ts
+const result = await df.fromReact({
+  react: myComponent,
+  data: reportData,
+  styles: `
+    body {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 12px;
+      color: #333;
+      line-height: 1.5;
+    }
+
+    table { page-break-inside: avoid; }
+
+    h1, h2, h3 { page-break-after: avoid; }
+
+    .page-break { page-break-before: always; }
+  `,
+  options: {
+    format: "A4",
+    printBackground: true,
+  },
+});
+```
+
+### Key Tips
+
+- **Always set `printBackground: true`** if your design uses background colors or gradients. Chromium strips backgrounds in print mode by default.
+- **Avoid viewport-relative units** like `vh` and `vw`. These are unreliable in a headless context. Use `mm`, `in`, `px`, or `%` instead.
+- **Use `page-break-inside: avoid`** on elements like table rows and cards that should not be split across pages.
+- **Use `page-break-before: always`** when you need to force a new page at a specific point.
+- **Stick to web-safe fonts** or embed font files via `@font-face` in your `styles` string. System fonts like Helvetica, Arial, Georgia, and Courier are universally available.
+- **Set explicit widths on tables and columns** rather than relying on auto-layout. This ensures consistent rendering regardless of content length.
+
+## Complete Example: Dashboard Report Export
+
+Here is a full working example that ties everything together. A dashboard page displays metrics and a data table on screen, and a button exports the same data as a professionally formatted PDF using `@docuforge/react` components.
+
+### The PDF Template
+
+```ts title="lib/pdf-templates/dashboard-report.ts"
+export const dashboardReportComponent = `
+import React from "react";
+import { Document, Page, Header, Footer, Table, Grid } from "@docuforge/react";
+
+export default function DashboardReport({ data }) {
+  const { title, period, metrics, transactions } = data;
+
+  const columns = [
+    { key: "date", header: "Date", width: "20%" },
+    { key: "description", header: "Description", width: "35%" },
+    {
+      key: "amount",
+      header: "Amount",
+      width: "20%",
+      align: "right",
+      render: (value) => "$" + value.toLocaleString("en-US", { minimumFractionDigits: 2 }),
+    },
+    {
+      key: "status",
+      header: "Status",
+      width: "25%",
+      align: "center",
+      render: (value) => {
+        const color = value === "completed" ? "#22c55e" : value === "pending" ? "#f59e0b" : "#ef4444";
+        return React.createElement(
+          "span",
+          { style: { color, fontWeight: 600, textTransform: "capitalize" } },
+          value
+        );
+      },
+    },
+  ];
+
+  return (
+    <Document title={title} styles={"body { font-family: Helvetica, sans-serif; color: #1a1a1a; }"}>
+      <Page size="A4" margin="20mm">
+        <Header style={{ borderBottom: "2px solid #F97316", paddingBottom: "12px", marginBottom: "24px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: "22px" }}>{title}</h1>
+              <p style={{ margin: "4px 0 0", color: "#666", fontSize: "13px" }}>{period}</p>
+            </div>
+            <div style={{ fontSize: "12px", color: "#999" }}>
+              Generated on {new Date().toLocaleDateString()}
+            </div>
+          </div>
+        </Header>
+
+        <Grid columns={4} gap="16px">
+          {metrics.map((metric, i) => (
+            <div
+              key={i}
+              style={{
+                border: "1px solid #e5e5e5",
+                borderRadius: "8px",
+                padding: "16px",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ margin: 0, fontSize: "12px", color: "#666", textTransform: "uppercase" }}>
+                {metric.label}
+              </p>
+              <p style={{ margin: "8px 0 0", fontSize: "24px", fontWeight: 700 }}>
+                {metric.value}
+              </p>
+            </div>
+          ))}
+        </Grid>
+
+        <h2 style={{ fontSize: "16px", marginTop: "32px", marginBottom: "12px" }}>
+          Recent Transactions
+        </h2>
+
+        <Table
+          data={transactions}
+          columns={columns}
+          striped
+          bordered
+        />
+
+        <Footer style={{ borderTop: "1px solid #e5e5e5", paddingTop: "8px", fontSize: "10px", color: "#999" }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Confidential -- Internal Use Only</span>
+            <span>DocuForge Dashboard Export</span>
+          </div>
+        </Footer>
+      </Page>
+    </Document>
+  );
+}
+`;
+```
+
+### The API Route
+
+```ts title="app/api/dashboard-report/route.ts"
+import { DocuForge } from "docuforge";
+import { dashboardReportComponent } from "@/lib/pdf-templates/dashboard-report";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+export async function POST(req: Request) {
+  const { title, period, metrics, transactions } = await req.json();
+
+  const result = await df.fromReact({
+    react: dashboardReportComponent,
+    data: { title, period, metrics, transactions },
+    options: {
+      format: "A4",
+      margin: "0mm",
+      printBackground: true,
+    },
+  });
+
+  return Response.json({
+    id: result.id,
+    url: result.url,
+    pages: result.pages,
+    fileSize: result.file_size,
+    generationTime: result.generation_time_ms,
+  });
+}
+```
+
+### The Dashboard Page
+
+```tsx title="app/dashboard/page.tsx"
+"use client";
+
+import { DownloadPDFButton } from "@/components/DownloadPDFButton";
+
+const metrics = [
+  { label: "Revenue", value: "$48,290" },
+  { label: "Orders", value: "1,247" },
+  { label: "Avg. Order", value: "$38.72" },
+  { label: "Conversion", value: "3.2%" },
+];
+
+const transactions = [
+  { date: "2026-03-15", description: "Enterprise license  - Acme Corp", amount: 12000, status: "completed" },
+  { date: "2026-03-14", description: "Pro plan upgrade - Jane Smith", amount: 49, status: "completed" },
+  { date: "2026-03-14", description: "Starter plan - New signup", amount: 19, status: "pending" },
+  { date: "2026-03-13", description: "Enterprise license - Globex Inc", amount: 12000, status: "completed" },
+  { date: "2026-03-12", description: "Refund - John Doe", amount: -49, status: "refunded" },
+];
+
+export default function DashboardPage() {
+  return (
+    <div style={{ maxWidth: "960px", margin: "0 auto", padding: "32px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1>Dashboard</h1>
+        <DownloadPDFButton
+          endpoint="/api/dashboard-report"
+          payload={{
+            title: "Monthly Dashboard Report",
+            period: "March 1 - March 31, 2026",
+            metrics,
+            transactions,
+          }}
+          filename="dashboard-report-march-2026.pdf"
+        >
+          Export Report
+        </DownloadPDFButton>
+      </div>
+
+      {/* Screen UI for metrics and transactions goes here */}
+    </div>
+  );
+}
+```
+
+When the user clicks "Export Report," the button component sends the metrics and transaction data to the API route, which passes everything to DocuForge via `fromReact()`. DocuForge renders the `@docuforge/react` components into a structured PDF with a branded header, metric cards in a grid, a striped and bordered data table, and a footer -- all generated in under two seconds.
+
+## Going Further
+
+You now have the tools to add PDF export to any React application, from a quick HTML capture to a fully designed document with `@docuforge/react` components. Here are some next steps to explore:
+
+- **[Generating PDFs in Next.js with Server Actions](/blog/generate-pdfs-nextjs)** -- deeper integration with the App Router and Server Actions pattern.
+- **[Page Layout and Multi-Page Documents](/blog/page-layout-multi-page-pdfs)** -- advanced control over page breaks, headers that repeat across pages, and landscape orientation.
+- **Batch generation** -- use `df.batch()` to generate hundreds of PDFs asynchronously when you need to export reports for every customer at once.
+- **Webhook notifications** -- pass a `webhook` URL to `df.generate()` or `df.fromReact()` to receive a callback when long-running generations complete.
+
+Check out the [DocuForge documentation](https://docs.docuforge.com) for the full API reference and more examples.

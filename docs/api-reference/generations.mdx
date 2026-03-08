@@ -1,0 +1,68 @@
+---
+title: GET /v1/generations
+description: Retrieve generation history and details.
+---
+
+# Generations
+
+## Get a Generation
+
+`GET https://api.docuforge.dev/v1/generations/:id`
+
+Retrieve details of a specific PDF generation.
+
+```bash
+curl https://api.docuforge.dev/v1/generations/gen_abc123 \
+  -H "Authorization: Bearer df_live_sk_..."
+```
+
+### Response
+
+```json
+{
+  "id": "gen_abc123",
+  "template_id": null,
+  "input_type": "html",
+  "status": "completed",
+  "url": "https://cdn.docuforge.dev/gen_abc123.pdf",
+  "pages": 2,
+  "file_size": 45230,
+  "generation_time_ms": 1840,
+  "error": null,
+  "created_at": "2026-02-24T12:00:00.000Z"
+}
+```
+
+## List Generations
+
+`GET https://api.docuforge.dev/v1/generations`
+
+List all generations for the authenticated user.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 50 | Max results (1-100) |
+| `offset` | integer | 0 | Pagination offset |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "gen_abc123",
+      "template_id": null,
+      "input_type": "html",
+      "status": "completed",
+      "url": "https://cdn.docuforge.dev/gen_abc123.pdf",
+      "pages": 2,
+      "file_size": 45230,
+      "generation_time_ms": 1840,
+      "created_at": "2026-02-24T12:00:00.000Z"
+    }
+  ],
+  "has_more": false
+}
+```

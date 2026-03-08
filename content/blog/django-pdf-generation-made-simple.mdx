@@ -1,0 +1,478 @@
+---
+title: "Django PDF Generation Made Simple"
+description: "Add PDF generation to your Django app with the DocuForge Python SDK. Build views for HTML-to-PDF, template-based invoices, and file downloads."
+slug: "django-pdf-generation-made-simple"
+date: "2026-04-04"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["django", "python", "pdf-generation", "tutorial"]
+readingTime: "9 min read"
+---
+
+## Introduction
+
+Django developers who need to generate PDFs have traditionally reached for libraries like ReportLab, WeasyPrint, or xhtml2pdf. Each has its own quirks: ReportLab forces you to build documents programmatically rather than from HTML, WeasyPrint requires system-level dependencies that complicate deployment, and xhtml2pdf struggles with modern CSS. All of them run rendering in-process, consuming server resources and introducing maintenance burden.
+
+DocuForge eliminates this complexity. One `pip install`, one API call, and you get back a pixel-perfect PDF rendered by a headless Chromium instance managed entirely by the DocuForge service. The Python SDK is synchronous and fits naturally into Django's request-response cycle.
+
+In this tutorial you will build Django views that cover the most common PDF workflows: converting raw HTML, generating invoices from templates with file downloads, integrating with Django REST Framework, building reusable class-based views, and adding PDF export actions to the Django admin.
+
+## Step 1: Install and Configure
+
+Start by installing the DocuForge Python SDK alongside your Django project dependencies.
+
+```bash
+pip install docuforge
+```
+
+Add your API key to your Django settings. You can grab one from the [DocuForge dashboard](/keys). Never hard-code API keys in source files -- pull them from environment variables.
+
+```python
+# settings.py
+import os
+
+DOCUFORGE_API_KEY = os.environ["DOCUFORGE_API_KEY"]
+```
+
+Create a small utility module so you do not repeat the client initialization across views.
+
+```python
+# pdf/utils.py
+from django.conf import settings
+from docuforge import DocuForge
+
+
+def get_docuforge_client():
+    return DocuForge(api_key=settings.DOCUFORGE_API_KEY)
+```
+
+This function returns a client instance you can use as a context manager in any view. Keeping it in one place means you only need to change configuration once if your setup evolves.
+
+## Step 2: Basic PDF Generation View
+
+The simplest integration is a function-based view that accepts HTML in a POST request and returns the generated PDF metadata as JSON.
+
+```python
+# pdf/views.py
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from docuforge import (
+    AuthenticationError,
+    RateLimitError,
+    ValidationError,
+    DocuForgeError,
+)
+from .utils import get_docuforge_client
+
+
+@csrf_exempt
+@require_POST
+def generate_pdf(request):
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    html = body.get("html")
+    if not html:
+        return JsonResponse({"error": "html field is required"}, status=400)
+
+    try:
+        with get_docuforge_client() as df:
+            pdf = df.generate(
+                html=html,
+                options={
+                    "format": body.get("format", "A4"),
+                    "margin": body.get("margin", "20mm"),
+                    "printBackground": True,
+                },
+            )
+
+        return JsonResponse({
+            "id": pdf.id,
+            "url": pdf.url,
+            "status": pdf.status,
+            "pages": pdf.pages,
+            "file_size": pdf.file_size,
+            "generation_time_ms": pdf.generation_time_ms,
+        })
+
+    except AuthenticationError:
+        return JsonResponse({"error": "Invalid API key"}, status=401)
+    except RateLimitError:
+        return JsonResponse({"error": "Rate limit exceeded"}, status=429)
+    except ValidationError as e:
+        return JsonResponse({"error": f"Validation failed: {e}"}, status=400)
+    except DocuForgeError as e:
+        return JsonResponse({"error": f"PDF generation failed: {e}"}, status=502)
+```
+
+Wire it up in your URL configuration:
+
+```python
+# pdf/urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("generate/", views.generate_pdf, name="generate_pdf"),
+]
+```
+
+The `@csrf_exempt` decorator is necessary here because this endpoint receives JSON from API clients rather than Django form submissions. The `@require_POST` decorator rejects anything that is not a POST request. The DocuForge error hierarchy maps cleanly to HTTP status codes: `AuthenticationError` to 401, `RateLimitError` to 429, `ValidationError` to 400, and the base `DocuForgeError` to 502 for upstream failures.
+
+## Step 3: Template-Based Invoice Download
+
+Most production use cases involve templates rather than raw HTML. This view fetches an invoice from your database, passes its data to a DocuForge template, and returns the PDF as a direct file download.
+
+Assume you have an Invoice model:
+
+```python
+# invoices/models.py
+from django.db import models
+
+
+class Invoice(models.Model):
+    number = models.CharField(max_length=50, unique=True)
+    customer_name = models.CharField(max_length=200)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class InvoiceItem(models.Model):
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="items")
+    description = models.CharField(max_length=300)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+```
+
+Now build the download view:
+
+```python
+# invoices/views.py
+import base64
+from django.http import HttpResponse, Http404
+from django.conf import settings
+from docuforge import DocuForge
+
+INVOICE_TEMPLATE_ID = "tmpl_your_template_id"
+
+
+def download_invoice_pdf(request, invoice_id):
+    try:
+        invoice = Invoice.objects.prefetch_related("items").get(pk=invoice_id)
+    except Invoice.DoesNotExist:
+        raise Http404("Invoice not found")
+
+    template_data = {
+        "invoice_number": invoice.number,
+        "customer_name": invoice.customer_name,
+        "items": [
+            {"description": item.description, "amount": str(item.amount)}
+            for item in invoice.items.all()
+        ],
+        "total": str(invoice.total),
+    }
+
+    with DocuForge(api_key=settings.DOCUFORGE_API_KEY) as df:
+        pdf = df.from_template(
+            template=INVOICE_TEMPLATE_ID,
+            data=template_data,
+            options={"format": "A4", "margin": "20mm"},
+            output="base64",
+        )
+
+    pdf_bytes = base64.b64decode(pdf.data)
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="invoice-{invoice.number}.pdf"'
+    response["Content-Length"] = len(pdf_bytes)
+    return response
+```
+
+Add the URL pattern:
+
+```python
+# invoices/urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("<int:invoice_id>/pdf/", views.download_invoice_pdf, name="invoice_pdf"),
+]
+```
+
+Setting `output="base64"` tells DocuForge to return the PDF content as a base64-encoded string instead of a hosted URL. You decode it with the standard library, wrap it in an `HttpResponse` with `content_type="application/pdf"`, and set the `Content-Disposition` header to trigger a browser download. The filename includes the invoice number so users can identify the file after saving.
+
+## Step 4: Django REST Framework Integration
+
+If your project uses Django REST Framework, you can build a more structured integration with serializers and viewsets.
+
+```python
+# pdf/serializers.py
+from rest_framework import serializers
+
+
+class PDFGenerateSerializer(serializers.Serializer):
+    html = serializers.CharField(required=True)
+    format = serializers.ChoiceField(
+        choices=["A4", "Letter", "Legal", "A3"],
+        default="A4",
+    )
+    margin = serializers.CharField(default="20mm")
+    orientation = serializers.ChoiceField(
+        choices=["portrait", "landscape"],
+        default="portrait",
+    )
+```
+
+Now create a viewset with a custom action:
+
+```python
+# pdf/api_views.py
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.conf import settings
+from docuforge import (
+    DocuForge,
+    AuthenticationError,
+    RateLimitError,
+    ValidationError,
+    DocuForgeError,
+)
+from .serializers import PDFGenerateSerializer
+
+
+class PDFViewSet(viewsets.ViewSet):
+
+    @action(detail=False, methods=["post"])
+    def generate(self, request):
+        serializer = PDFGenerateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            with DocuForge(api_key=settings.DOCUFORGE_API_KEY) as df:
+                pdf = df.generate(
+                    html=data["html"],
+                    options={
+                        "format": data["format"],
+                        "margin": data["margin"],
+                        "orientation": data["orientation"],
+                        "printBackground": True,
+                    },
+                )
+
+            return Response({
+                "id": pdf.id,
+                "url": pdf.url,
+                "status": pdf.status,
+                "pages": pdf.pages,
+                "file_size": pdf.file_size,
+                "generation_time_ms": pdf.generation_time_ms,
+            })
+
+        except AuthenticationError:
+            return Response(
+                {"error": "Invalid API key"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except RateLimitError:
+            return Response(
+                {"error": "Rate limit exceeded"},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        except ValidationError as e:
+            return Response(
+                {"error": f"Validation failed: {e}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DocuForgeError as e:
+            return Response(
+                {"error": f"PDF generation failed: {e}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+```
+
+Register the viewset in your router:
+
+```python
+# pdf/urls.py
+from rest_framework.routers import DefaultRouter
+from .api_views import PDFViewSet
+
+router = DefaultRouter()
+router.register(r"pdf", PDFViewSet, basename="pdf")
+
+urlpatterns = router.urls
+```
+
+The serializer handles input validation and provides clear error messages before any API call is made. DRF's `is_valid(raise_exception=True)` returns a 400 response automatically if the data does not match the schema. The DocuForge error classes map to DRF's `status` constants, keeping the response format consistent with the rest of your API.
+
+## Step 5: Class-Based View Approach
+
+For projects that follow Django's class-based view conventions, you can build a reusable base view and a mixin pattern.
+
+```python
+# pdf/cbv.py
+import base64
+from django.http import HttpResponse, JsonResponse
+from django.views import View
+from django.conf import settings
+from docuforge import DocuForge, DocuForgeError
+
+
+class PDFGenerationView(View):
+    """Base view for PDF generation. Subclass and override get_html()."""
+
+    pdf_options = {"format": "A4", "margin": "20mm", "printBackground": True}
+    filename = "document.pdf"
+
+    def get_html(self, request, **kwargs):
+        raise NotImplementedError("Subclasses must implement get_html()")
+
+    def get(self, request, **kwargs):
+        html = self.get_html(request, **kwargs)
+
+        try:
+            with DocuForge(api_key=settings.DOCUFORGE_API_KEY) as df:
+                pdf = df.generate(
+                    html=html,
+                    options=self.pdf_options,
+                    output="base64",
+                )
+        except DocuForgeError as e:
+            return JsonResponse({"error": str(e)}, status=502)
+
+        pdf_bytes = base64.b64decode(pdf.data)
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{self.filename}"'
+        return response
+```
+
+You can also define a mixin that adds PDF export capability to any existing detail view:
+
+```python
+# pdf/mixins.py
+import base64
+from django.http import HttpResponse
+from django.conf import settings
+from docuforge import DocuForge
+from django.template.loader import render_to_string
+
+
+class PDFExportMixin:
+    """Add PDF export to any detail view. Set pdf_template_name and pdf_filename."""
+
+    pdf_template_name = None
+    pdf_filename = "export.pdf"
+    pdf_options = {"format": "A4", "margin": "20mm"}
+
+    def render_pdf(self, request, context):
+        html = render_to_string(self.pdf_template_name, context, request=request)
+
+        with DocuForge(api_key=settings.DOCUFORGE_API_KEY) as df:
+            pdf = df.generate(html=html, options=self.pdf_options, output="base64")
+
+        pdf_bytes = base64.b64decode(pdf.data)
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{self.pdf_filename}"'
+        return response
+```
+
+Using the mixin, any view that already builds a context dictionary can add a PDF export route with minimal code. The `render_to_string` call renders a Django template to HTML, which DocuForge then converts to PDF. This lets you reuse your existing Django templates -- the same Jinja-style markup you already write for web pages can produce PDFs with no modifications.
+
+## Step 6: Admin Integration
+
+Django's admin interface supports custom actions on list views. Adding a "Download PDF" action lets staff members generate PDFs for selected records directly from the admin.
+
+```python
+# invoices/admin.py
+import base64
+from django.contrib import admin
+from django.http import HttpResponse
+from django.conf import settings
+from docuforge import DocuForge
+from .models import Invoice, InvoiceItem
+
+
+class InvoiceItemInline(admin.TabularInline):
+    model = InvoiceItem
+    extra = 0
+
+
+@admin.register(Invoice)
+class InvoiceAdmin(admin.ModelAdmin):
+    list_display = ("number", "customer_name", "total", "created_at")
+    inlines = [InvoiceItemInline]
+    actions = ["download_pdfs"]
+
+    @admin.action(description="Download PDF for selected invoices")
+    def download_pdfs(self, request, queryset):
+        items = []
+        for invoice in queryset.prefetch_related("items"):
+            items.append({
+                "html": self._build_invoice_html(invoice),
+                "options": {"format": "A4", "margin": "20mm"},
+            })
+
+        with DocuForge(api_key=settings.DOCUFORGE_API_KEY) as df:
+            if len(items) == 1:
+                pdf = df.generate(
+                    html=items[0]["html"],
+                    options=items[0]["options"],
+                    output="base64",
+                )
+                pdf_bytes = base64.b64decode(pdf.data)
+                filename = f"invoice-{queryset.first().number}.pdf"
+            else:
+                result = df.batch(items)
+                self.message_user(
+                    request,
+                    f"Batch job submitted for {len(items)} invoices. "
+                    f"Results will be available at the URLs returned by the API.",
+                )
+                return
+
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    def _build_invoice_html(self, invoice):
+        items_html = "".join(
+            f"<tr><td>{item.description}</td>"
+            f"<td style='text-align:right;'>${item.amount}</td></tr>"
+            for item in invoice.items.all()
+        )
+        return f"""
+        <html>
+        <body style="font-family: sans-serif; padding: 40px;">
+            <h1>Invoice #{invoice.number}</h1>
+            <p>Bill to: {invoice.customer_name}</p>
+            <table style="width:100%; border-collapse:collapse;">
+                <tr style="border-bottom:1px solid #ccc;">
+                    <th style="text-align:left;">Item</th>
+                    <th style="text-align:right;">Amount</th>
+                </tr>
+                {items_html}
+            </table>
+            <h2 style="text-align:right; margin-top:20px;">Total: ${invoice.total}</h2>
+        </body>
+        </html>
+        """
+```
+
+When a single invoice is selected, the action generates the PDF immediately and returns it as a file download. When multiple invoices are selected, it submits a batch job using `df.batch()`, which queues the work asynchronously and returns immediately. The batch approach is the right choice for bulk operations because it avoids tying up the request while multiple PDFs render sequentially.
+
+The `@admin.action` decorator (available in Django 3.2 and later) registers the method as a list action. Staff members select invoices using the checkboxes in the admin list view, choose "Download PDF for selected invoices" from the action dropdown, and click "Go."
+
+## Going Further
+
+This tutorial covered the core patterns for integrating DocuForge into a Django application -- function-based views, template-based downloads, DRF integration, class-based views, and admin actions. From here you can explore several directions:
+
+- **FastAPI integration** -- If parts of your system use FastAPI, the SDK works identically. See our [FastAPI tutorial](/blog/pdf-generation-python-fastapi-docuforge) for async patterns and Pydantic model examples.
+- **Comparing rendering approaches** -- If you are evaluating DocuForge against Puppeteer or WeasyPrint, the [DocuForge vs Puppeteer](/blog/docuforge-vs-puppeteer) article breaks down the trade-offs in performance, accuracy, and operational overhead.
+- **Page layout control** -- Our [page layout guide](/docs/page-layout) covers headers, footers, page numbers, and multi-column layouts in detail.
+- **Batch processing** -- The `df.batch()` method is ideal for scheduled jobs like monthly invoice runs. Pair it with Django management commands or Celery tasks for fully automated PDF pipelines.

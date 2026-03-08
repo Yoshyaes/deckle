@@ -1,0 +1,76 @@
+---
+title: "DocuForge vs Gotenberg"
+description: "Compare DocuForge's managed API against self-hosted Gotenberg"
+---
+
+# DocuForge vs Gotenberg
+
+Gotenberg is an open-source, self-hosted document conversion API using Docker. DocuForge is a managed API that eliminates the need to run and scale your own infrastructure.
+
+## Feature Comparison
+
+| Feature | DocuForge | Gotenberg |
+|---------|-----------|-----------|
+| **Hosting** | Managed (cloud) | Self-hosted (Docker) |
+| **Setup** | 5 minutes (API key) | 30-60 min (Docker + config) |
+| **Rendering engine** | Chromium | Chromium + LibreOffice |
+| **Office docs → PDF** | Not supported | Yes (via LibreOffice) |
+| **HTML-to-PDF** | Yes | Yes |
+| **React-to-PDF** | Yes | No |
+| **Template engine** | Yes (visual editor) | No |
+| **SDKs** | TS, Python, Go, Ruby | Go client only |
+| **Batch generation** | Built-in async queue | Manual orchestration |
+| **Scaling** | Auto-scaled | Manual Docker scaling |
+| **Custom fonts** | Upload via API | Mount in Docker volume |
+| **QR/Barcodes** | Built-in | Not included |
+| **Cost** | Free tier, from $29/mo | Free (+ server costs) |
+| **Uptime SLA** | 99.9% | You manage uptime |
+
+## Setup Comparison
+
+### Gotenberg
+
+```yaml
+# docker-compose.yml
+version: "3"
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    ports:
+      - "3000:3000"
+    environment:
+      - CHROMIUM_DISABLE_ROUTES=false
+```
+
+```bash
+docker compose up -d
+curl -X POST http://localhost:3000/forms/chromium/convert/html \
+  -F 'files=@index.html' \
+  -o output.pdf
+```
+
+### DocuForge
+
+```typescript
+import { DocuForge } from 'docuforge';
+const df = new DocuForge('df_live_...');
+
+const pdf = await df.generate({
+  html: '<h1>Hello World</h1>',
+  options: { format: 'A4' },
+});
+```
+
+## When to Choose Gotenberg
+
+- You need Office document conversion (DOCX, XLSX → PDF)
+- You have strict data residency requirements
+- You want a free, self-hosted solution and can manage Docker infrastructure
+- You're already running Kubernetes and can auto-scale Docker containers
+
+## When to Choose DocuForge
+
+- You don't want to manage Docker infrastructure
+- You need templates, React support, or batch generation
+- You want SDKs for multiple languages
+- You need a reliable SLA without managing uptime yourself

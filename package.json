@@ -1,0 +1,19 @@
+{
+  "name": "docuforge",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "turbo": "^2",
+    "typescript": "^5.4"
+  },
+  "packageManager": "pnpm@10.30.2"
+}

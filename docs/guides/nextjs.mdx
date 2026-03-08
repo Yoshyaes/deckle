@@ -1,0 +1,120 @@
+---
+title: Next.js Guide
+description: Generate PDFs in your Next.js app with DocuForge.
+---
+
+# Generate PDFs in Next.js
+
+This guide shows you how to add PDF generation to a Next.js application using DocuForge.
+
+## 1. Install the SDK
+
+```bash
+npm install docuforge
+```
+
+## 2. Set Up Environment Variables
+
+Add your API key to `.env.local`:
+
+```bash
+DOCUFORGE_API_KEY=df_live_sk_...
+```
+
+## 3. Create an API Route
+
+Create a server-side API route to generate PDFs. Never expose your API key to the client.
+
+```typescript
+// app/api/generate-pdf/route.ts
+import { DocuForge } from 'docuforge';
+import { NextResponse } from 'next/server';
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+export async function POST(request: Request) {
+  const { html, options } = await request.json();
+
+  const pdf = await df.generate({
+    html,
+    options: {
+      format: 'A4',
+      margin: '1in',
+      ...options,
+    },
+  });
+
+  return NextResponse.json(pdf);
+}
+```
+
+## 4. Call from the Client
+
+```typescript
+// app/invoices/page.tsx
+'use client';
+
+import { useState } from 'react';
+
+export default function InvoicePage() {
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+
+  const generateInvoice = async () => {
+    const res = await fetch('/api/generate-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        html: `
+          <h1>Invoice #1234</h1>
+          <p>Bill to: Acme Corp</p>
+          <table>
+            <tr><td>Consulting</td><td>10 hrs</td><td>$1,500</td></tr>
+          </table>
+          <h2>Total: $1,500</h2>
+        `,
+      }),
+    });
+
+    const pdf = await res.json();
+    setPdfUrl(pdf.url);
+  };
+
+  return (
+    <div>
+      <button onClick={generateInvoice}>Generate Invoice PDF</button>
+      {pdfUrl && (
+        <a href={pdfUrl} target="_blank" rel="noopener noreferrer">
+          Download PDF
+        </a>
+      )}
+    </div>
+  );
+}
+```
+
+## 5. Use Templates for Complex Layouts
+
+For production invoices, use templates:
+
+```typescript
+// app/api/generate-invoice/route.ts
+import { DocuForge } from 'docuforge';
+import { NextResponse } from 'next/server';
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+export async function POST(request: Request) {
+  const invoiceData = await request.json();
+
+  const pdf = await df.fromTemplate({
+    template: 'tmpl_invoice_v2',
+    data: invoiceData,
+    options: {
+      format: 'A4',
+      footer: '<div style="text-align:center;font-size:10px">Page {{pageNumber}} of {{totalPages}}</div>',
+    },
+  });
+
+  return NextResponse.json(pdf);
+}
+```

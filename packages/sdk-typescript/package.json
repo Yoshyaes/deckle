@@ -1,0 +1,36 @@
+{
+  "name": "docuforge",
+  "version": "0.1.0",
+  "author": "DocuForge",
+  "homepage": "https://docuforge.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/docuforge/docuforge"
+  },
+  "bugs": "https://github.com/docuforge/docuforge/issues",
+  "description": "DocuForge - PDF generation API for developers. HTML in, pixel-perfect PDF out.",
+  "sideEffects": false,
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --watch"
+  },
+  "keywords": ["pdf", "html-to-pdf", "pdf-generation", "api", "docuforge"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4",
+    "tsup": "^8",
+    "@types/node": "^20"
+  }
+}

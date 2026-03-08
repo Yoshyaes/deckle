@@ -1,0 +1,525 @@
+---
+title: "Express.js PDF API: From HTML to PDF in 30 Seconds"
+description: "Build a complete PDF generation API with Express.js and DocuForge in under a minute. HTML-to-PDF, templates, downloads, and error handling included."
+slug: "express-pdf-api-html-to-pdf"
+date: "2026-04-10"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["express", "typescript", "api", "pdf-generation", "tutorial"]
+readingTime: "8 min read"
+---
+
+# Express.js PDF API: From HTML to PDF in 30 Seconds
+
+Express.js remains the most widely used Node.js framework for building APIs. It has earned that position by staying out of your way. You define routes, wire up middleware, and ship. PDF generation should be just as straightforward.
+
+In practice, it rarely is. Teams burn days configuring Puppeteer, managing headless Chromium processes, handling zombie browsers, and debugging font rendering. All of that complexity exists below the abstraction layer you actually care about: give me HTML, give me back a PDF.
+
+DocuForge eliminates that entire layer. You send HTML (or a template, or JSX) to a single API call and get a production-ready PDF back. No browser binaries. No process management. No memory leaks at 3 AM.
+
+In this tutorial, you will build a PDF microservice with Express.js that exposes four endpoints: HTML-to-PDF generation, template-based invoice rendering, direct file downloads, and React-to-PDF conversion. The whole thing takes about 30 seconds to set up and a few more minutes to flesh out with proper error handling.
+
+## Step 1: Project Setup
+
+Start by creating a new project and installing the two packages you need:
+
+```bash
+mkdir pdf-service && cd pdf-service
+npm init -y
+npm install express docuforge
+npm install -D typescript @types/express @types/node tsx
+```
+
+TypeScript is optional but recommended. If you prefer plain JavaScript, skip the dev dependencies and remove the type annotations from the examples below.
+
+Create a `tsconfig.json` with sensible defaults:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true
+  }
+}
+```
+
+Add your DocuForge API key to a `.env` file. Never commit this file to version control.
+
+```bash
+DOCUFORGE_API_KEY=df_live_your_api_key_here
+```
+
+Now initialize the DocuForge client. Create `src/server.ts` and add the foundation:
+
+```typescript
+// src/server.ts
+import express from "express";
+import DocuForge from "docuforge";
+
+const app = express();
+app.use(express.json({ limit: "10mb" }));
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`PDF service running on port ${PORT}`);
+});
+```
+
+Run it with `npx tsx --env-file=.env src/server.ts`. You have a running Express server with a configured DocuForge client. Time to add endpoints.
+
+## Step 2: HTML-to-PDF Endpoint
+
+The most fundamental operation is converting raw HTML into a PDF. Create a `POST /api/generate` route that accepts an HTML string and optional PDF settings:
+
+```typescript
+app.post("/api/generate", async (req, res, next) => {
+  try {
+    const { html, options } = req.body;
+
+    if (!html) {
+      res.status(400).json({ error: "Missing html field in request body" });
+      return;
+    }
+
+    const pdf = await df.generate({
+      html,
+      options: {
+        format: "A4",
+        margin: { top: "20mm", right: "15mm", bottom: "20mm", left: "15mm" },
+        printBackground: true,
+        ...options,
+      },
+    });
+
+    res.json({
+      id: pdf.id,
+      url: pdf.url,
+      pages: pdf.pages,
+      file_size: pdf.file_size,
+      generation_time_ms: pdf.generation_time_ms,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+```
+
+Test it with curl:
+
+```bash
+curl -X POST http://localhost:3000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"html": "<h1>Hello from Express</h1><p>This is a PDF.</p>"}'
+```
+
+The response comes back with a `url` field pointing to the hosted PDF. You can open it in a browser, pass it to a frontend, or store it in your database. The `generation_time_ms` field tells you exactly how long the render took, typically under a second for simple documents.
+
+Notice the `options` spread pattern. The caller can override any PDF setting (format, orientation, margins) through the request body, while your defaults ensure sensible output when no options are provided. The `printBackground` flag is worth defaulting to `true` since most HTML documents use background colors and images that would otherwise be stripped.
+
+You can also add headers and footers with automatic page numbering:
+
+```typescript
+const pdf = await df.generate({
+  html,
+  options: {
+    format: "A4",
+    margin: { top: "25mm", right: "15mm", bottom: "25mm", left: "15mm" },
+    header: '<div style="font-size:10px;text-align:center;width:100%">Confidential</div>',
+    footer: '<div style="font-size:10px;text-align:center;width:100%">Page {{pageNumber}} of {{totalPages}}</div>',
+  },
+});
+```
+
+The `{{pageNumber}}` and `{{totalPages}}` tokens are interpolated automatically by DocuForge during rendering.
+
+## Step 3: Template-Based Invoice Endpoint
+
+Raw HTML works for one-off documents, but most real applications generate PDFs from structured data. Invoices, receipts, reports -- these all follow a fixed layout populated with dynamic values. DocuForge templates use Handlebars syntax (`{{variable}}`, `{{#each items}}`, `{{#if}}`) and are stored server-side with version history.
+
+Create a template in the DocuForge dashboard first (or via the API), then reference it by ID:
+
+```typescript
+const INVOICE_TEMPLATE_ID = "tmpl_your_invoice_template";
+
+app.post("/api/invoices/:id/pdf", async (req, res, next) => {
+  try {
+    const invoiceId = req.params.id;
+
+    // Fetch invoice data from your database
+    const invoice = await getInvoiceFromDB(invoiceId);
+
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    const pdf = await df.fromTemplate({
+      template: INVOICE_TEMPLATE_ID,
+      data: {
+        invoiceNumber: invoice.number,
+        date: invoice.date,
+        customerName: invoice.customer.name,
+        customerEmail: invoice.customer.email,
+        items: invoice.lineItems.map((item) => ({
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: (item.unitPrice / 100).toFixed(2),
+          total: ((item.quantity * item.unitPrice) / 100).toFixed(2),
+        })),
+        subtotal: (invoice.subtotal / 100).toFixed(2),
+        tax: (invoice.tax / 100).toFixed(2),
+        total: (invoice.total / 100).toFixed(2),
+      },
+      options: {
+        format: "A4",
+        margin: "15mm",
+      },
+    });
+
+    res.json({
+      id: pdf.id,
+      url: pdf.url,
+      pages: pdf.pages,
+      generation_time_ms: pdf.generation_time_ms,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+```
+
+The `data` object is matched against the Handlebars placeholders in your template. If your template contains `{{#each items}}`, the `items` array is iterated. If it contains `{{#if customerEmail}}`, the block renders conditionally. This separation of layout and data means designers can update the template in the dashboard without touching your Express code.
+
+Templates also support version history. Every update to a template creates a new version, so you can roll back if a layout change breaks something. The template ID stays the same across versions -- DocuForge always uses the latest version unless you specify otherwise.
+
+## Step 4: Direct File Download
+
+Sometimes you do not want to redirect users to a hosted URL. You want the browser to start downloading a PDF immediately when they click a button. The `output: 'base64'` option makes this possible.
+
+```typescript
+app.get("/api/invoices/:id/download", async (req, res, next) => {
+  try {
+    const invoiceId = req.params.id;
+    const invoice = await getInvoiceFromDB(invoiceId);
+
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    const pdf = await df.fromTemplate({
+      template: INVOICE_TEMPLATE_ID,
+      data: {
+        invoiceNumber: invoice.number,
+        date: invoice.date,
+        customerName: invoice.customer.name,
+        items: invoice.lineItems,
+        total: (invoice.total / 100).toFixed(2),
+      },
+      output: "base64",
+    });
+
+    const buffer = Buffer.from(pdf.data!, "base64");
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="invoice-${invoice.number}.pdf"`
+    );
+    res.setHeader("Content-Length", buffer.length);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+```
+
+When `output` is set to `'base64'`, the response includes a `data` field containing the raw PDF bytes encoded as a base64 string. You decode it into a Buffer, set the appropriate headers, and send it directly. The `Content-Disposition: attachment` header tells the browser to download the file rather than display it inline.
+
+This approach keeps everything in a single request. The user clicks a link, the server generates the PDF, and the download starts. No intermediate hosted URL, no second HTTP call.
+
+If you prefer the hosted URL approach but still want a seamless download experience, you can use the default `output: 'url'` mode and redirect:
+
+```typescript
+app.get("/api/invoices/:id/download-redirect", async (req, res, next) => {
+  try {
+    const invoice = await getInvoiceFromDB(req.params.id);
+    const pdf = await df.fromTemplate({
+      template: INVOICE_TEMPLATE_ID,
+      data: { invoiceNumber: invoice.number, items: invoice.lineItems },
+    });
+    res.redirect(pdf.url);
+  } catch (err) {
+    next(err);
+  }
+});
+```
+
+This is faster since the PDF is generated and stored on DocuForge's CDN, and the browser fetches it directly. The tradeoff is that the URL is temporarily public. For sensitive documents like invoices, the base64 approach keeps the PDF entirely within your server's control.
+
+## Step 5: Error Handling Middleware
+
+DocuForge's SDK throws typed errors that map cleanly to HTTP status codes. A single Express error middleware can catch them all and return consistent responses:
+
+```typescript
+import {
+  DocuForgeError,
+  AuthenticationError,
+  RateLimitError,
+  ValidationError,
+} from "docuforge";
+
+app.use(
+  (
+    err: Error,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    if (err instanceof RateLimitError) {
+      res.setHeader("Retry-After", String(err.retryAfter));
+      res.status(429).json({
+        error: "Rate limit exceeded",
+        retryAfter: err.retryAfter,
+      });
+      return;
+    }
+
+    if (err instanceof AuthenticationError) {
+      res.status(401).json({
+        error: "Invalid or missing DocuForge API key",
+      });
+      return;
+    }
+
+    if (err instanceof ValidationError) {
+      res.status(400).json({
+        error: err.message,
+      });
+      return;
+    }
+
+    if (err instanceof DocuForgeError) {
+      res.status(err.statusCode).json({
+        error: err.message,
+      });
+      return;
+    }
+
+    // Unknown errors
+    console.error("Unexpected error:", err);
+    res.status(500).json({
+      error: "Internal server error",
+    });
+  }
+);
+```
+
+The order matters. `RateLimitError` and `AuthenticationError` extend `DocuForgeError`, so they must be checked first. If you catch `DocuForgeError` at the top, the specific subclasses would never match.
+
+The `RateLimitError` is particularly important to handle well. It includes a `retryAfter` property (in seconds) that you should forward as a `Retry-After` header. Well-behaved clients will wait that duration before retrying. If you are building a frontend that calls this Express API, you can read that header and show a countdown or queue the request.
+
+The `ValidationError` covers cases like malformed HTML, missing template variables, or invalid PDF options. The error message from DocuForge is descriptive enough to return directly to the caller.
+
+Because every route uses `next(err)` in its catch block, all DocuForge errors flow through this single middleware. You write the error mapping once and every endpoint benefits.
+
+## Step 6: React-to-PDF Endpoint
+
+If your team writes components in React, you can skip the HTML string entirely and send JSX to DocuForge. The server transpiles it, renders it to static markup, and converts it to a PDF:
+
+```typescript
+app.post("/api/generate/react", async (req, res, next) => {
+  try {
+    const { react, data, styles } = req.body;
+
+    if (!react) {
+      res.status(400).json({ error: "Missing react field in request body" });
+      return;
+    }
+
+    const pdf = await df.fromReact({
+      react,
+      data,
+      styles,
+      options: {
+        format: "A4",
+        margin: "20mm",
+        printBackground: true,
+      },
+    });
+
+    res.json({
+      id: pdf.id,
+      url: pdf.url,
+      pages: pdf.pages,
+      file_size: pdf.file_size,
+      generation_time_ms: pdf.generation_time_ms,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+```
+
+The `react` field accepts a JSX/TSX string. DocuForge transpiles it with esbuild on the server, so you do not need a build step. The optional `data` object is passed as props to the root component, and `styles` accepts a CSS string applied to the rendered output.
+
+This is especially useful when your PDF layouts share components with your frontend. Instead of maintaining separate HTML templates, you write React components that work in both the browser and the PDF renderer. A reporting dashboard component, for example, can render interactively on screen and produce a static PDF with the same layout when exported.
+
+```bash
+curl -X POST http://localhost:3000/api/generate/react \
+  -H "Content-Type: application/json" \
+  -d '{
+    "react": "export default function Report({ title, items }) { return (<div><h1>{title}</h1><ul>{items.map((item, i) => <li key={i}>{item}</li>)}</ul></div>); }",
+    "data": { "title": "Q1 Report", "items": ["Revenue up 23%", "Churn down 4%"] }
+  }'
+```
+
+## Complete Server Code
+
+Here is the full `src/server.ts` with all endpoints consolidated:
+
+```typescript
+// src/server.ts
+import express from "express";
+import DocuForge, {
+  DocuForgeError,
+  AuthenticationError,
+  RateLimitError,
+  ValidationError,
+} from "docuforge";
+
+const app = express();
+app.use(express.json({ limit: "10mb" }));
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+const INVOICE_TEMPLATE_ID = "tmpl_your_invoice_template";
+
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+// HTML-to-PDF
+app.post("/api/generate", async (req, res, next) => {
+  try {
+    const { html, options } = req.body;
+    if (!html) {
+      res.status(400).json({ error: "Missing html field" });
+      return;
+    }
+    const pdf = await df.generate({
+      html,
+      options: { format: "A4", margin: "15mm", printBackground: true, ...options },
+    });
+    res.json(pdf);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Template-based invoice
+app.post("/api/invoices/:id/pdf", async (req, res, next) => {
+  try {
+    const invoice = await getInvoiceFromDB(req.params.id);
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+    const pdf = await df.fromTemplate({
+      template: INVOICE_TEMPLATE_ID,
+      data: invoice,
+      options: { format: "A4", margin: "15mm" },
+    });
+    res.json(pdf);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Direct download
+app.get("/api/invoices/:id/download", async (req, res, next) => {
+  try {
+    const invoice = await getInvoiceFromDB(req.params.id);
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+    const pdf = await df.fromTemplate({
+      template: INVOICE_TEMPLATE_ID,
+      data: invoice,
+      output: "base64",
+    });
+    const buffer = Buffer.from(pdf.data!, "base64");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="invoice-${req.params.id}.pdf"`);
+    res.setHeader("Content-Length", buffer.length);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// React-to-PDF
+app.post("/api/generate/react", async (req, res, next) => {
+  try {
+    const { react, data, styles } = req.body;
+    if (!react) {
+      res.status(400).json({ error: "Missing react field" });
+      return;
+    }
+    const pdf = await df.fromReact({
+      react,
+      data,
+      styles,
+      options: { format: "A4", margin: "20mm", printBackground: true },
+    });
+    res.json(pdf);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Error handling middleware
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof RateLimitError) {
+    res.setHeader("Retry-After", String(err.retryAfter));
+    res.status(429).json({ error: "Rate limit exceeded", retryAfter: err.retryAfter });
+    return;
+  }
+  if (err instanceof AuthenticationError) {
+    res.status(401).json({ error: "Invalid or missing API key" });
+    return;
+  }
+  if (err instanceof ValidationError) {
+    res.status(400).json({ error: err.message });
+    return;
+  }
+  if (err instanceof DocuForgeError) {
+    res.status(err.statusCode).json({ error: err.message });
+    return;
+  }
+  console.error("Unexpected error:", err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`PDF service running on port ${PORT}`));
+```
+
+Run it with `npx tsx --env-file=.env src/server.ts` and you have a fully functional PDF microservice.
+
+## Going Further
+
+This tutorial covered the core patterns for Express-based PDF generation. From here, you can extend the service in several directions:
+
+- **Add authentication middleware** to protect your endpoints and pass user context to DocuForge for usage tracking.
+- **Use the batch endpoint** (`df.batch()`) for generating hundreds of PDFs asynchronously through BullMQ.
+- **Deploy as a standalone microservice** behind an API gateway, keeping PDF generation isolated from your main application.
+
+For more depth, see the [Next.js PDF generation guide](/blog/generate-pdfs-nextjs-docuforge) for framework-specific patterns, the [DocuForge vs Puppeteer comparison](/blog/docuforge-vs-puppeteer-why-i-switched) for architectural context, and the [page layout and styling guide](/docs/page-layout) for advanced CSS techniques in PDF rendering.

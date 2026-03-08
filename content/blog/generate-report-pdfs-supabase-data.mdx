@@ -1,0 +1,715 @@
+---
+title: "Generate Report PDFs from Supabase Data"
+description: "Query your Supabase database, transform the data, and generate polished PDF reports with DocuForge. Complete with tables, QR codes, and automatic scheduling."
+slug: "generate-report-pdfs-supabase-data"
+date: "2026-03-21"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["supabase", "typescript", "templates", "pdf-generation", "tutorial"]
+readingTime: "11 min read"
+---
+
+# Generate Report PDFs from Supabase Data
+
+Your Supabase database holds everything: orders, users, revenue, product performance. But when the CEO asks for a weekly sales summary, nobody wants to stare at a JSON response. Stakeholders want polished, printable PDFs they can skim in a meeting, forward to investors, or archive for compliance.
+
+Building a reporting pipeline from scratch means stitching together a query layer, a templating engine, a PDF renderer, and a delivery mechanism. That is a lot of surface area for bugs.
+
+In this tutorial, you will build a complete reporting pipeline that queries sales data from Supabase, feeds it into a Handlebars template with tables and QR codes, generates a pixel-perfect PDF with DocuForge, stores the result back in Supabase, and automates the whole thing with an Edge Function. You will also see how to scale to multi-client batch reports using the DocuForge batch API.
+
+## Step 1: Set Up the Project
+
+Start by creating a new Node.js project and installing the two dependencies you need: the DocuForge SDK for PDF generation and the Supabase client for database queries.
+
+```bash
+mkdir sales-report-generator
+cd sales-report-generator
+npm init -y
+npm install docuforge @supabase/supabase-js
+```
+
+Add your credentials to a `.env` file. Never commit this file to version control.
+
+```bash
+DOCUFORGE_API_KEY=df_live_your_api_key_here
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIs...
+```
+
+Use the service role key here, not the anon key. You are running this on the server and need unrestricted access to query across all rows without row-level security filtering. In a production setup, you would scope this down with a custom role, but the service key is fine for a reporting script.
+
+Create a `report.ts` file and initialize both clients:
+
+```typescript
+// report.ts
+import DocuForge from "docuforge";
+import { createClient } from "@supabase/supabase-js";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+);
+```
+
+With both clients ready, you can start querying data.
+
+## Step 2: Query Data from Supabase
+
+A useful sales report needs more than a raw list of orders. You need aggregated totals, a daily breakdown for trend analysis, and a ranked list of top-selling products. All of this can come from a single Supabase table with a few well-structured queries.
+
+Assume your `orders` table has columns for `id`, `created_at`, `product_name`, `quantity`, `total_price`, and `status`. Here is how to pull the data for a given date range and transform it into a report-ready shape:
+
+```typescript
+interface ReportData {
+  report_title: string;
+  date_range: string;
+  generated_at: string;
+  total_revenue: string;
+  total_orders: number;
+  average_order_value: string;
+  daily_data: { date: string; orders: number; revenue: string }[];
+  top_products: { name: string; units_sold: number; revenue: string }[];
+  report_url: string;
+}
+
+async function queryReportData(
+  startDate: string,
+  endDate: string
+): Promise<ReportData> {
+  // Fetch all completed orders in the date range
+  const { data: orders, error } = await supabase
+    .from("orders")
+    .select("*")
+    .gte("created_at", startDate)
+    .lte("created_at", endDate)
+    .eq("status", "completed")
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`Supabase query failed: ${error.message}`);
+  if (!orders || orders.length === 0) throw new Error("No orders found for date range");
+
+  // Calculate totals
+  const totalRevenue = orders.reduce((sum, o) => sum + o.total_price, 0);
+  const totalOrders = orders.length;
+  const averageOrderValue = totalRevenue / totalOrders;
+
+  // Build daily breakdown
+  const dailyMap = new Map<string, { orders: number; revenue: number }>();
+  for (const order of orders) {
+    const date = order.created_at.split("T")[0];
+    const existing = dailyMap.get(date) || { orders: 0, revenue: 0 };
+    existing.orders += 1;
+    existing.revenue += order.total_price;
+    dailyMap.set(date, existing);
+  }
+  const dailyData = Array.from(dailyMap.entries()).map(([date, stats]) => ({
+    date,
+    orders: stats.orders,
+    revenue: stats.revenue.toFixed(2),
+  }));
+
+  // Rank top products by revenue
+  const productMap = new Map<string, { units: number; revenue: number }>();
+  for (const order of orders) {
+    const existing = productMap.get(order.product_name) || { units: 0, revenue: 0 };
+    existing.units += order.quantity;
+    existing.revenue += order.total_price;
+    productMap.set(order.product_name, existing);
+  }
+  const topProducts = Array.from(productMap.entries())
+    .map(([name, stats]) => ({
+      name,
+      units_sold: stats.units,
+      revenue: stats.revenue.toFixed(2),
+    }))
+    .sort((a, b) => parseFloat(b.revenue) - parseFloat(a.revenue))
+    .slice(0, 10);
+
+  return {
+    report_title: "Weekly Sales Report",
+    date_range: `${startDate} to ${endDate}`,
+    generated_at: new Date().toISOString().split("T")[0],
+    total_revenue: totalRevenue.toFixed(2),
+    total_orders: totalOrders,
+    average_order_value: averageOrderValue.toFixed(2),
+    daily_data: dailyData,
+    top_products: topProducts,
+    report_url: `https://dashboard.example.com/reports`,
+  };
+}
+```
+
+The key insight here is to do all the aggregation in application code rather than fighting with Supabase's limited aggregation support. For larger datasets, you could use a Supabase database function (a Postgres `plpgsql` function) to push the aggregation to the database layer. But for weekly reports with a few thousand rows, in-memory aggregation is fast and keeps the logic readable.
+
+## Step 3: Create a Report Template
+
+Now build the Handlebars template that turns your data into a visually structured report. This template uses CSS grid for the summary cards, a styled table for the daily breakdown, a ranked list of top products, and a QR code that links to your live dashboard.
+
+```typescript
+async function createReportTemplate() {
+  const template = await df.templates.create({
+    name: "Weekly Sales Report",
+    html_content: `
+      <html>
+        <head>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Helvetica Neue', Arial, sans-serif;
+              color: #1a1a2e;
+              padding: 50px;
+              line-height: 1.6;
+            }
+            .report-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              border-bottom: 3px solid #f97316;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .report-header h1 {
+              font-size: 28px;
+              font-weight: 700;
+              color: #1a1a2e;
+            }
+            .report-header .meta {
+              text-align: right;
+              font-size: 13px;
+              color: #666;
+            }
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 20px;
+              margin-bottom: 40px;
+            }
+            .summary-card {
+              background: #f8f9fa;
+              border-radius: 8px;
+              padding: 20px;
+              text-align: center;
+            }
+            .summary-card .label {
+              font-size: 12px;
+              text-transform: uppercase;
+              color: #888;
+              letter-spacing: 0.5px;
+            }
+            .summary-card .value {
+              font-size: 32px;
+              font-weight: 700;
+              color: #f97316;
+              margin-top: 6px;
+            }
+            h2 {
+              font-size: 18px;
+              margin-bottom: 15px;
+              color: #1a1a2e;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 40px;
+              font-size: 14px;
+            }
+            thead th {
+              text-align: left;
+              padding: 10px 12px;
+              background: #1a1a2e;
+              color: #fff;
+              font-weight: 600;
+            }
+            thead th:first-child { border-radius: 6px 0 0 0; }
+            thead th:last-child { border-radius: 0 6px 0 0; }
+            tbody td {
+              padding: 10px 12px;
+              border-bottom: 1px solid #eee;
+            }
+            tbody tr:nth-child(even) { background: #fafafa; }
+            .top-products {
+              margin-bottom: 40px;
+            }
+            .product-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 10px 0;
+              border-bottom: 1px solid #eee;
+            }
+            .product-row .rank {
+              width: 30px;
+              height: 30px;
+              background: #f97316;
+              color: #fff;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              font-size: 13px;
+              margin-right: 14px;
+            }
+            .product-row .product-info {
+              flex: 1;
+            }
+            .product-row .product-name {
+              font-weight: 600;
+            }
+            .product-row .product-units {
+              font-size: 12px;
+              color: #888;
+            }
+            .product-row .product-revenue {
+              font-weight: 700;
+              color: #1a1a2e;
+            }
+            .footer-section {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+            }
+            .footer-section .note {
+              font-size: 12px;
+              color: #999;
+              max-width: 400px;
+            }
+            .qr-section {
+              text-align: center;
+            }
+            .qr-section .qr-label {
+              font-size: 11px;
+              color: #888;
+              margin-top: 6px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="report-header">
+            <div>
+              <h1>{{report_title}}</h1>
+              <p style="color: #666; font-size: 14px;">{{date_range}}</p>
+            </div>
+            <div class="meta">
+              <p>Generated: {{generated_at}}</p>
+            </div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="summary-card">
+              <div class="label">Total Revenue</div>
+              <div class="value">\${{total_revenue}}</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">Total Orders</div>
+              <div class="value">{{total_orders}}</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">Avg Order Value</div>
+              <div class="value">\${{average_order_value}}</div>
+            </div>
+          </div>
+
+          <h2>Daily Breakdown</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Orders</th>
+                <th>Revenue</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each daily_data}}
+              <tr>
+                <td>{{this.date}}</td>
+                <td>{{this.orders}}</td>
+                <td>\${{this.revenue}}</td>
+              </tr>
+              {{/each}}
+            </tbody>
+          </table>
+
+          <div class="top-products">
+            <h2>Top Products</h2>
+            {{#each top_products}}
+            <div class="product-row">
+              <div class="rank">{{@index}}</div>
+              <div class="product-info">
+                <div class="product-name">{{this.name}}</div>
+                <div class="product-units">{{this.units_sold}} units sold</div>
+              </div>
+              <div class="product-revenue">\${{this.revenue}}</div>
+            </div>
+            {{/each}}
+          </div>
+
+          <div class="footer-section">
+            <div class="note">
+              This report was automatically generated from live database records.
+              Figures reflect completed orders only. Refunded and pending
+              transactions are excluded.
+            </div>
+            <div class="qr-section">
+              {{qr:{{report_url}}}}
+              <div class="qr-label">Scan for live dashboard</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+    schema: {
+      report_title: "string",
+      date_range: "string",
+      generated_at: "string",
+      total_revenue: "string",
+      total_orders: "number",
+      average_order_value: "string",
+      daily_data: "array",
+      top_products: "array",
+      report_url: "string",
+    },
+  });
+
+  console.log("Template created:", template.id);
+  return template;
+}
+```
+
+A few things to note about this template. The summary cards use a CSS grid with three equal columns. This renders cleanly in Chromium and produces consistent output across pages. The product ranking uses `{{@index}}` from Handlebars to display the position number automatically.
+
+The QR code at the bottom uses DocuForge's `{{qr:data}}` placeholder syntax. Before rendering, DocuForge replaces this with an inline SVG. The QR code links to your live dashboard URL, so anyone who receives the printed report can scan it to see real-time data. This is particularly useful for reports that are printed and distributed in meetings.
+
+You only need to create this template once. Save the returned template ID and reuse it for every report generation.
+
+## Step 4: Generate the Report PDF
+
+With your data queried and your template created, generating the PDF is a single function call. Use `df.fromTemplate()` to merge the data into the template. Add a header with your company name and a footer with automatic page numbers.
+
+```typescript
+const TEMPLATE_ID = "tmpl_your_report_template_id";
+
+async function generateReport(startDate: string, endDate: string) {
+  // Query and transform the data
+  const reportData = await queryReportData(startDate, endDate);
+
+  // Generate the PDF
+  const result = await df.fromTemplate({
+    template: TEMPLATE_ID,
+    data: reportData,
+    options: {
+      format: "A4",
+      orientation: "portrait",
+      margin: { top: "35mm", right: "20mm", bottom: "25mm", left: "20mm" },
+      printBackground: true,
+      header: `
+        <div style="font-size: 10px; color: #999; width: 100%; padding: 0 20mm;
+                    display: flex; justify-content: space-between;">
+          <span>Acme Corp</span>
+          <span>Weekly Sales Report - Confidential</span>
+        </div>
+      `,
+      footer: `
+        <div style="font-size: 10px; color: #999; width: 100%; text-align: center;
+                    padding: 0 20mm;">
+          Page {{pageNumber}} of {{totalPages}}
+        </div>
+      `,
+    },
+  });
+
+  console.log(`Report generated in ${result.generation_time_ms}ms`);
+  console.log(`Pages: ${result.pages}`);
+  console.log(`Size: ${(result.file_size / 1024).toFixed(1)} KB`);
+  console.log(`URL: ${result.url}`);
+
+  return result;
+}
+```
+
+The `{{pageNumber}}` and `{{totalPages}}` placeholders in the footer are replaced at render time by the PDF engine. They are independent of the Handlebars variables in your template body. Make sure your top margin is at least 30-35mm to give the header enough room, and your bottom margin is at least 20-25mm for the footer. If the margins are too tight, the header or footer will overlap with your content.
+
+The response gives you everything you need to work with the generated PDF. The `url` field points to the hosted PDF file. The `id` field (prefixed with `gen_`) lets you look up the generation later. The `file_size` is in bytes and `generation_time_ms` tells you how long the render took.
+
+## Step 5: Store the PDF URL Back in Supabase
+
+Once the report is generated, store a reference back in your Supabase database. This creates an audit trail and makes it easy to build a report history page in your dashboard. Create a `reports` table with columns for the generation metadata.
+
+First, set up the table. You can do this through the Supabase dashboard SQL editor:
+
+```sql
+create table reports (
+  id uuid default gen_random_uuid() primary key,
+  generation_id text not null,
+  pdf_url text not null,
+  report_type text not null default 'weekly_sales',
+  date_range_start date not null,
+  date_range_end date not null,
+  total_revenue numeric,
+  total_orders integer,
+  pages integer,
+  file_size integer,
+  generation_time_ms integer,
+  created_at timestamptz default now()
+);
+```
+
+Then insert the record after each generation:
+
+```typescript
+async function storeReportRecord(
+  result: { id: string; url: string; pages: number; file_size: number; generation_time_ms: number },
+  reportData: ReportData,
+  startDate: string,
+  endDate: string
+) {
+  const { error } = await supabase.from("reports").insert({
+    generation_id: result.id,
+    pdf_url: result.url,
+    report_type: "weekly_sales",
+    date_range_start: startDate,
+    date_range_end: endDate,
+    total_revenue: parseFloat(reportData.total_revenue),
+    total_orders: reportData.total_orders,
+    pages: result.pages,
+    file_size: result.file_size,
+    generation_time_ms: result.generation_time_ms,
+  });
+
+  if (error) throw new Error(`Failed to store report record: ${error.message}`);
+  console.log("Report record saved to Supabase");
+}
+```
+
+Now you can query the `reports` table to show a history of generated reports, link to the PDF URLs, or track generation performance over time. This is also useful for debugging: if a stakeholder says a report looks wrong, you can look up the exact generation ID and inspect it in your DocuForge dashboard.
+
+## Step 6: Automate with Supabase Edge Functions
+
+Running this pipeline manually defeats the purpose. Supabase Edge Functions let you deploy a Deno-based serverless function that runs on a schedule. Create a new Edge Function that executes the full pipeline every Monday morning.
+
+First, initialize the function:
+
+```bash
+supabase functions new generate-weekly-report
+```
+
+Then write the function in `supabase/functions/generate-weekly-report/index.ts`:
+
+```typescript
+// supabase/functions/generate-weekly-report/index.ts
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+serve(async (req) => {
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Calculate last week's date range
+    const now = new Date();
+    const endDate = new Date(now);
+    endDate.setDate(now.getDate() - 1); // Yesterday
+    const startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - 6); // 7 days back
+
+    const startStr = startDate.toISOString().split("T")[0];
+    const endStr = endDate.toISOString().split("T")[0];
+
+    // Query orders
+    const { data: orders, error } = await supabase
+      .from("orders")
+      .select("*")
+      .gte("created_at", startStr)
+      .lte("created_at", endStr)
+      .eq("status", "completed");
+
+    if (error) throw error;
+
+    const totalRevenue = orders.reduce((sum: number, o: any) => sum + o.total_price, 0);
+    const totalOrders = orders.length;
+
+    // Call DocuForge API directly (no npm SDK in Deno)
+    const apiKey = Deno.env.get("DOCUFORGE_API_KEY")!;
+    const templateId = Deno.env.get("REPORT_TEMPLATE_ID")!;
+
+    const generateResponse = await fetch("https://api.docuforge.com/v1/generate", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        template: templateId,
+        data: {
+          report_title: "Weekly Sales Report",
+          date_range: `${startStr} to ${endStr}`,
+          generated_at: now.toISOString().split("T")[0],
+          total_revenue: totalRevenue.toFixed(2),
+          total_orders: totalOrders,
+          average_order_value: (totalRevenue / totalOrders).toFixed(2),
+          daily_data: [], // Build from orders as shown in Step 2
+          top_products: [], // Build from orders as shown in Step 2
+          report_url: "https://dashboard.example.com/reports",
+        },
+        options: {
+          format: "A4",
+          margin: { top: "35mm", right: "20mm", bottom: "25mm", left: "20mm" },
+          printBackground: true,
+          footer: '<div style="font-size:10px;color:#999;width:100%;text-align:center;">Page {{pageNumber}} of {{totalPages}}</div>',
+        },
+      }),
+    });
+
+    const result = await generateResponse.json();
+
+    // Store the record
+    await supabase.from("reports").insert({
+      generation_id: result.id,
+      pdf_url: result.url,
+      report_type: "weekly_sales",
+      date_range_start: startStr,
+      date_range_end: endStr,
+      total_revenue: totalRevenue,
+      total_orders: totalOrders,
+      pages: result.pages,
+      file_size: result.file_size,
+      generation_time_ms: result.generation_time_ms,
+    });
+
+    return new Response(JSON.stringify({ success: true, url: result.url }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+});
+```
+
+Deploy the function and set the required secrets:
+
+```bash
+supabase functions deploy generate-weekly-report
+supabase secrets set DOCUFORGE_API_KEY=df_live_your_key
+supabase secrets set REPORT_TEMPLATE_ID=tmpl_your_id
+```
+
+To run it on a schedule, set up a cron job using the `pg_cron` extension in Supabase. In the SQL editor:
+
+```sql
+select cron.schedule(
+  'weekly-sales-report',
+  '0 8 * * 1',  -- Every Monday at 8:00 AM UTC
+  $$
+  select net.http_post(
+    url := 'https://your-project.supabase.co/functions/v1/generate-weekly-report',
+    headers := '{"Authorization": "Bearer your-anon-key"}'::jsonb
+  );
+  $$
+);
+```
+
+This triggers the Edge Function every Monday at 8 AM. The report covers the previous seven days, generates a PDF, and stores the result. No manual intervention required.
+
+## Step 7: Batch Reports for Multiple Clients
+
+If you run a multi-tenant platform, you need to generate separate reports for each client. Doing this sequentially is slow. The DocuForge batch API lets you queue all reports at once and get notified when they are done.
+
+```typescript
+async function generateClientReports(startDate: string, endDate: string) {
+  // Fetch all active clients
+  const { data: clients, error } = await supabase
+    .from("clients")
+    .select("id, name, slug")
+    .eq("status", "active");
+
+  if (error) throw error;
+
+  // Query each client's data and build batch items
+  const items = await Promise.all(
+    clients.map(async (client) => {
+      const { data: orders } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("client_id", client.id)
+        .gte("created_at", startDate)
+        .lte("created_at", endDate)
+        .eq("status", "completed");
+
+      const totalRevenue = (orders || []).reduce(
+        (sum, o) => sum + o.total_price,
+        0
+      );
+
+      return {
+        template: TEMPLATE_ID,
+        data: {
+          report_title: `${client.name} - Weekly Sales Report`,
+          date_range: `${startDate} to ${endDate}`,
+          generated_at: new Date().toISOString().split("T")[0],
+          total_revenue: totalRevenue.toFixed(2),
+          total_orders: (orders || []).length,
+          average_order_value:
+            orders && orders.length > 0
+              ? (totalRevenue / orders.length).toFixed(2)
+              : "0.00",
+          daily_data: [], // Build per-client daily breakdown
+          top_products: [], // Build per-client product ranking
+          report_url: `https://dashboard.example.com/${client.slug}/reports`,
+        },
+        options: {
+          format: "A4",
+          margin: { top: "35mm", right: "20mm", bottom: "25mm", left: "20mm" },
+          printBackground: true,
+        },
+      };
+    })
+  );
+
+  // Submit all reports as a single batch
+  const batch = await df.batch({
+    items,
+    webhook: "https://your-app.com/api/webhooks/batch-complete",
+  });
+
+  console.log(`Batch submitted: ${batch.batch_id}`);
+  console.log(`Total reports: ${batch.total}`);
+  console.log(`Status: ${batch.status}`);
+
+  // Store batch metadata
+  await supabase.from("report_batches").insert({
+    batch_id: batch.batch_id,
+    total_reports: batch.total,
+    date_range_start: startDate,
+    date_range_end: endDate,
+    client_ids: clients.map((c) => c.id),
+  });
+
+  return batch;
+}
+```
+
+The `df.batch()` call returns immediately with HTTP 202. The response includes a `batch_id`, the `total` number of reports queued, and an array of `generations` with each item's `id` and `index`. DocuForge processes the jobs concurrently on its side using a BullMQ worker pool with retries and exponential backoff.
+
+When all reports finish, DocuForge sends a POST request to your webhook URL. Your webhook handler can then update the batch status in Supabase, notify clients via email, or trigger downstream workflows. For a batch of 50 client reports, this approach is dramatically faster than generating them one at a time.
+
+You can also poll individual generation status using `df.getGeneration(id)` if you prefer polling over webhooks.
+
+## Going Further
+
+You now have a fully automated reporting pipeline: Supabase data in, polished PDFs out, with scheduling and multi-client batch support. Here are some natural next steps:
+
+- **[Automate Stripe invoices](/blog/automate-stripe-invoices-pdf)** -- Generate PDF invoices on every successful Stripe payment and email them to customers.
+- **[Generate PDFs in Next.js](/blog/generate-pdfs-nextjs-docuforge)** -- Build a dashboard front end that lets users trigger report generation on demand.
+- **[Page layout guide](/docs/page-layout)** -- Fine-tune margins, headers, footers, and multi-page layouts for professional documents.
+
+Check out the [full API reference](/docs/api-reference) for additional features like PDF merging, splitting, password protection, and form filling.

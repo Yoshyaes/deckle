@@ -1,0 +1,122 @@
+---
+title: Rails Guide
+description: Generate PDFs in your Rails app with DocuForge.
+---
+
+# Generate PDFs in Rails
+
+Add PDF generation to a Ruby on Rails application using the DocuForge REST API directly.
+
+## 1. Set Up
+
+Add the `httpx` gem (or use `net/http`):
+
+```ruby
+# Gemfile
+gem "httpx"
+```
+
+## 2. Create a Service
+
+```ruby
+# app/services/docuforge.rb
+require "httpx"
+require "json"
+
+class Docuforge
+  BASE_URL = "https://api.docuforge.dev"
+
+  def initialize(api_key = ENV["DOCUFORGE_API_KEY"])
+    @api_key = api_key
+  end
+
+  def generate(html:, options: {})
+    response = HTTPX.post(
+      "#{BASE_URL}/v1/generate",
+      headers: {
+        "Authorization" => "Bearer #{@api_key}",
+        "Content-Type" => "application/json"
+      },
+      body: { html: html, options: options }.to_json
+    )
+    JSON.parse(response.body, symbolize_names: true)
+  end
+
+  def from_template(template:, data:, options: {})
+    response = HTTPX.post(
+      "#{BASE_URL}/v1/generate",
+      headers: {
+        "Authorization" => "Bearer #{@api_key}",
+        "Content-Type" => "application/json"
+      },
+      body: { template: template, data: data, options: options }.to_json
+    )
+    JSON.parse(response.body, symbolize_names: true)
+  end
+end
+```
+
+## 3. Controller
+
+```ruby
+# app/controllers/invoices_controller.rb
+class InvoicesController < ApplicationController
+  def generate_pdf
+    df = Docuforge.new
+
+    result = df.from_template(
+      template: "tmpl_invoice_v2",
+      data: {
+        company: @invoice.customer_name,
+        items: @invoice.line_items.map { |li|
+          { description: li.description, qty: li.quantity, rate: li.rate }
+        },
+        total: @invoice.total.to_s
+      }
+    )
+
+    render json: result
+  end
+
+  def download
+    df = Docuforge.new
+    @invoice = Invoice.find(params[:id])
+
+    result = df.from_template(
+      template: "tmpl_invoice_v2",
+      data: invoice_data(@invoice),
+      options: { output: "base64" }
+    )
+
+    pdf_data = Base64.decode64(result[:data])
+    send_data pdf_data,
+      filename: "invoice-#{@invoice.id}.pdf",
+      type: "application/pdf",
+      disposition: "attachment"
+  end
+
+  private
+
+  def invoice_data(invoice)
+    {
+      company: invoice.customer_name,
+      items: invoice.line_items.as_json(only: [:description, :qty, :rate]),
+      total: invoice.total.to_s
+    }
+  end
+end
+```
+
+## 4. Routes
+
+```ruby
+# config/routes.rb
+Rails.application.routes.draw do
+  resources :invoices do
+    member do
+      post :generate_pdf
+      get :download
+    end
+  end
+end
+```

@@ -1,0 +1,47 @@
+---
+title: Introduction
+description: PDF generation API for developers. HTML in, pixel-perfect PDF out.
+---
+
+# DocuForge
+
+DocuForge is a PDF generation API for developers. Send HTML or template data — get pixel-perfect PDFs back in under 3 seconds. No headless browsers to manage, no rendering bugs to chase.
+
+## Three Ways to Generate
+
+<CardGroup cols={3}>
+  <Card title="HTML → PDF" icon="code">
+    Send raw HTML with full CSS support. Flexbox, Grid, custom fonts — all rendered correctly.
+  </Card>
+  <Card title="Templates" icon="file-lines">
+    Design reusable templates with variable slots. Merge data via API.
+  </Card>
+  <Card title="React → PDF" icon="react" color="#61DAFB">
+    Use React components for type-safe PDF layouts. *(Coming in Phase 2)*
+  </Card>
+</CardGroup>
+
+## Why DocuForge?
+
+- **Fast** — Generate a 2-page invoice in under 1.5 seconds
+- **Pixel-perfect** — Full CSS3 support including Flexbox, Grid, and @page rules
+- **Simple** — 4 lines of code to your first PDF
+- **Smart page breaks** — No more orphaned headings or split table rows
+- **Headers & footers** — With automatic page number interpolation
+- **SDKs** — TypeScript and Python, with more coming soon
+
+## Quick Example
+
+```typescript
+import { DocuForge } from 'docuforge';
+
+const df = new DocuForge('df_live_...');
+
+const pdf = await df.generate({
+  html: '<h1>Invoice #1234</h1><p>Amount: $500</p>',
+  options: { format: 'A4', margin: '1in' }
+});
+
+console.log(pdf.url);
+// → https://cdn.docuforge.dev/gen_abc123.pdf
+```

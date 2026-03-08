@@ -1,0 +1,79 @@
+---
+title: Express Guide
+description: Generate PDFs in your Express.js app with DocuForge.
+---
+
+# Generate PDFs in Express
+
+Add PDF generation to an Express.js application.
+
+## 1. Install
+
+```bash
+npm install docuforge express
+```
+
+## 2. Set Up
+
+```typescript
+// server.ts
+import express from 'express';
+import { DocuForge } from 'docuforge';
+
+const app = express();
+app.use(express.json());
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+// Generate PDF from HTML
+app.post('/api/generate', async (req, res) => {
+  try {
+    const pdf = await df.generate({
+      html: req.body.html,
+      options: req.body.options,
+    });
+    res.json(pdf);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Generate invoice from template
+app.post('/api/invoices/:id/pdf', async (req, res) => {
+  // Fetch invoice data from your database
+  const invoice = await getInvoice(req.params.id);
+
+  const pdf = await df.fromTemplate({
+    template: 'tmpl_invoice_v2',
+    data: {
+      company: invoice.customerName,
+      items: invoice.lineItems,
+      total: invoice.total,
+    },
+  });
+
+  res.json(pdf);
+});
+
+app.listen(3000, () => console.log('Server running on :3000'));
+```
+
+## 3. Download Endpoint
+
+```typescript
+// Proxy the PDF download
+app.get('/api/invoices/:id/download', async (req, res) => {
+  const invoice = await getInvoice(req.params.id);
+
+  const pdf = await df.fromTemplate({
+    template: 'tmpl_invoice_v2',
+    data: invoice,
+    output: 'base64',
+  });
+
+  const buffer = Buffer.from(pdf.data!, 'base64');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="invoice-${req.params.id}.pdf"`);
+  res.send(buffer);
+});
+```

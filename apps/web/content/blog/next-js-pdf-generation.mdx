@@ -1,0 +1,101 @@
+---
+title: "How to Generate PDFs in Next.js with DocuForge"
+description: "Learn how to add PDF generation to your Next.js application in under 5 minutes using the DocuForge SDK."
+date: "2026-03-01"
+author: "DocuForge Team"
+category: "Next.js"
+readingTime: 6
+---
+
+Generating PDFs in Next.js shouldn't be hard. No headless browsers to configure, no Puppeteer memory leaks, no wkhtmltopdf compatibility issues. With DocuForge, it's one API call.
+
+## Prerequisites
+
+- A Next.js 14+ project (App Router or Pages Router)
+- A DocuForge API key ([get one free](https://app.docuforge.dev/sign-up))
+- Node.js 18+
+
+## Install the SDK
+
+```bash
+npm install docuforge
+```
+
+## Create a PDF Generation API Route
+
+Create a new API route at `app/api/generate-pdf/route.ts`:
+
+```typescript
+import DocuForge from 'docuforge';
+import { NextResponse } from 'next/server';
+
+const docuforge = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+export async function POST(request: Request) {
+  const { html } = await request.json();
+
+  const pdf = await docuforge.generate({
+    html,
+    options: { format: 'A4', margin: '20mm' },
+  });
+
+  return NextResponse.json(pdf);
+}
+```
+
+## Generate Your First PDF
+
+That's it. Call the endpoint with any HTML and get back a PDF URL:
+
+```typescript
+const response = await fetch('/api/generate-pdf', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    html: '<h1>Hello from Next.js!</h1><p>This is a PDF.</p>',
+  }),
+});
+
+const pdf = await response.json();
+console.log(pdf.url); // Your PDF is ready
+```
+
+## Using React Components
+
+You can also use DocuForge's React components for type-safe, component-based PDF design:
+
+```typescript
+import { Document, Page, Table } from '@docuforge/react-pdf';
+
+const pdf = await docuforge.fromReact({
+  component: `
+    <Document title="Sales Report">
+      <Page size="A4">
+        <h1>Q4 Sales Report</h1>
+        <Table data={data} columns={columns} striped />
+      </Page>
+    </Document>
+  `,
+});
+```
+
+## Using Templates
+
+For recurring PDFs like invoices, create a template once and fill it with data:
+
+```typescript
+const pdf = await docuforge.fromTemplate({
+  templateId: 'tmpl_invoice_v2',
+  data: {
+    customerName: 'Acme Corp',
+    items: [{ name: 'Widget', price: 49.99 }],
+    total: 49.99,
+  },
+});
+```
+
+## Next Steps
+
+- Read the [full SDK documentation](https://docs.docuforge.dev)
+- Explore [pre-built templates](https://app.docuforge.dev/templates/gallery)
+- Learn about [batch PDF generation](https://docs.docuforge.dev/api-reference/generate) for high-volume use cases

@@ -1,0 +1,63 @@
+{
+  "name": "DocuForge",
+  "logo": {
+    "dark": "/logo-dark.svg",
+    "light": "/logo-light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#F97316",
+    "light": "#FBBF24",
+    "dark": "#EA580C"
+  },
+  "topbarLinks": [
+    { "name": "Dashboard", "url": "https://app.docuforge.dev" }
+  ],
+  "topbarCtaButton": {
+    "name": "Get API Key",
+    "url": "https://app.docuforge.dev"
+  },
+  "tabs": [
+    { "name": "API Reference", "url": "api-reference" },
+    { "name": "Guides", "url": "guides" }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": ["introduction", "quickstart", "authentication"]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/generate",
+        "api-reference/generations",
+        "api-reference/templates",
+        "api-reference/usage"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/nextjs",
+        "guides/express",
+        "guides/fastapi",
+        "guides/django",
+        "guides/rails"
+      ]
+    },
+    {
+      "group": "Comparisons",
+      "pages": [
+        "comparisons/vs-puppeteer",
+        "comparisons/vs-docraptor",
+        "comparisons/vs-pdfmonkey",
+        "comparisons/vs-gotenberg",
+        "comparisons/vs-jspdf"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/docuforge",
+    "twitter": "https://twitter.com/docuforge"
+  }
+}

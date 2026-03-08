@@ -1,0 +1,14 @@
+When using DocuForge for PDF generation:
+- Import: import { DocuForge } from 'docuforge'
+- Initialize with API key: const df = new DocuForge(process.env.DOCUFORGE_API_KEY)
+- Generate from HTML: await df.generate({ html: '...', options: { format: 'A4' } })
+- Generate from template: await df.fromTemplate({ template: 'tmpl_xxx', data: { ... } })
+- Response includes: id, status, url, pages, file_size, generation_time_ms
+- Supported formats: A4, Letter, Legal, or custom { width, height }
+- Headers/footers support {{pageNumber}} and {{totalPages}} interpolation
+- Free tier: 1,000 PDFs/month
+- Always use server-side API calls — never expose the API key in client-side code
+- For Next.js: create an API route that calls DocuForge, then call that route from the client
+- For Express: create an endpoint that generates the PDF and returns the URL
+- Python SDK: from docuforge import DocuForge; df = DocuForge("df_live_...")
+- Template syntax uses Handlebars: {{variable}}, {{#each items}}, {{#if condition}}

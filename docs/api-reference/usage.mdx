@@ -1,0 +1,38 @@
+---
+title: GET /v1/usage
+description: Get usage statistics for the current billing period.
+---
+
+# Usage
+
+`GET https://api.docuforge.dev/v1/usage`
+
+Returns usage statistics for the authenticated user's current billing period.
+
+```bash
+curl https://api.docuforge.dev/v1/usage \
+  -H "Authorization: Bearer df_live_sk_..."
+```
+
+## Response
+
+```json
+{
+  "period_start": "2026-02-01",
+  "period_end": "2026-02-28",
+  "generation_count": 742,
+  "total_pages": 1856,
+  "total_bytes": 89420800,
+  "plan": "starter",
+  "limit": 10000
+}
+```
+
+## Plan Limits
+
+| Plan | Monthly PDFs | Max File Size |
+|------|-------------|---------------|
+| Free | 1,000 | 10MB |
+| Starter | 10,000 | 25MB |
+| Pro | 100,000 | 50MB |
+| Enterprise | Unlimited | Unlimited |

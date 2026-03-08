@@ -1,0 +1,489 @@
+---
+title: "Generate PDF Certificates for Your Online Course"
+description: "Automatically generate personalized PDF certificates for course graduates using DocuForge templates. Includes QR verification codes and batch generation."
+slug: "generate-pdf-certificates-online-course"
+date: "2026-04-01"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["certificates", "templates", "batch", "tutorial", "typescript"]
+readingTime: "10 min read"
+---
+
+## Introduction
+
+Completion certificates are one of the most tangible rewards you can offer students who finish your online course. They validate effort, look good on a LinkedIn profile, and give your platform a professional edge. The problem is that creating them manually does not scale. Once you have a few hundred graduates per cohort, opening a design tool and swapping out names is no longer an option.
+
+In this tutorial, you will build a certificate generation pipeline with DocuForge that handles everything end to end. You will design a polished certificate template with Handlebars placeholders, embed a QR code that links to a verification page, generate a single certificate to test the flow, and then batch-generate certificates for an entire cohort in one API call. You will also add draft watermarks for preview mode and wire up email delivery so each student receives their certificate automatically.
+
+By the end, you will have a production-ready system that turns a list of student records into individually personalized, verifiable PDF certificates with no manual intervention.
+
+## Step 1: Design the Certificate Template
+
+A certificate needs to look the part. Gold accents, elegant typography, and a formal layout go a long way toward making recipients feel that their achievement matters. The template below uses a decorative double border, serif headings, and a centered composition that works well in landscape orientation.
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lato:wght@300;400&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 297mm;
+      height: 210mm;
+      font-family: 'Lato', sans-serif;
+      background: #fffdf7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .certificate {
+      width: 267mm;
+      height: 180mm;
+      border: 3px solid #b8860b;
+      outline: 1px solid #d4a84b;
+      outline-offset: 6px;
+      padding: 32px 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .certificate::before,
+    .certificate::after {
+      content: '';
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border: 2px solid #b8860b;
+    }
+
+    .certificate::before {
+      top: 8px;
+      left: 8px;
+      border-right: none;
+      border-bottom: none;
+    }
+
+    .certificate::after {
+      bottom: 8px;
+      right: 8px;
+      border-left: none;
+      border-top: none;
+    }
+
+    .header {
+      text-align: center;
+    }
+
+    .header .org-name {
+      font-family: 'Lato', sans-serif;
+      font-weight: 300;
+      font-size: 14px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .header .title {
+      font-family: 'Playfair Display', serif;
+      font-size: 42px;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: 2px;
+    }
+
+    .divider {
+      width: 120px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #b8860b, transparent);
+      margin: 4px 0;
+    }
+
+    .body {
+      text-align: center;
+    }
+
+    .body .preamble {
+      font-size: 14px;
+      color: #666;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .body .student-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 36px;
+      font-weight: 700;
+      color: #b8860b;
+      margin-bottom: 16px;
+    }
+
+    .body .description {
+      font-size: 15px;
+      color: #444;
+      line-height: 1.6;
+      max-width: 500px;
+    }
+
+    .body .course-title {
+      font-weight: 400;
+      color: #1a1a1a;
+    }
+
+    .footer {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .footer .detail {
+      text-align: center;
+    }
+
+    .footer .detail .label {
+      font-size: 10px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 4px;
+    }
+
+    .footer .detail .value {
+      font-size: 13px;
+      color: #333;
+    }
+
+    .footer .qr {
+      text-align: center;
+    }
+
+    .footer .qr .qr-label {
+      font-size: 9px;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="certificate">
+    <div class="header">
+      <div class="org-name">Your Academy</div>
+      <div class="title">Certificate of Completion</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="body">
+      <div class="preamble">This is proudly presented to</div>
+      <div class="student-name">{{student_name}}</div>
+      <div class="description">
+        for successfully completing the course
+        <span class="course-title">{{course_title}}</span>
+        on {{completion_date}}.
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="detail">
+        <div class="label">Date</div>
+        <div class="value">{{completion_date}}</div>
+      </div>
+      <div class="qr">
+        {{qr:https://yoursite.com/verify/{{certificate_id}}}}
+        <div class="qr-label">Scan to verify</div>
+      </div>
+      <div class="detail">
+        <div class="label">Certificate ID</div>
+        <div class="value">{{certificate_id}}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+```
+
+The `{{qr:...}}` placeholder is a DocuForge feature that replaces the tag with an inline SVG QR code at render time. No external library is needed. The QR encodes a URL pointing to your verification endpoint, which you will build in Step 3.
+
+Now store this template in DocuForge so you can reference it by ID in every generation call:
+
+```typescript
+import DocuForge from "docuforge";
+
+const df = new DocuForge("df_live_your_api_key");
+
+const template = await df.templates.create({
+  name: "Course Completion Certificate",
+  html_content: certificateHtml, // the HTML string above
+  schema: {
+    student_name: { type: "string", required: true },
+    course_title: { type: "string", required: true },
+    completion_date: { type: "string", required: true },
+    certificate_id: { type: "string", required: true },
+  },
+});
+
+console.log(template.id); // tmpl_xxxxxxxx
+```
+
+The schema is optional but recommended. It documents which variables the template expects and enables validation at generation time, so a missing field returns a clear error instead of a blank spot on the certificate.
+
+## Step 2: Generate a Single Certificate
+
+With the template stored, generating a certificate for one student is a single call to `df.fromTemplate()`. This is useful for testing the design and for on-demand generation when a student completes a course in real time.
+
+```typescript
+const certificate = await df.fromTemplate({
+  template: "tmpl_xxxxxxxx",
+  data: {
+    student_name: "Alice Johnson",
+    course_title: "Advanced TypeScript Patterns",
+    completion_date: "March 15, 2026",
+    certificate_id: "CERT-2026-00412",
+  },
+  options: {
+    format: "A4",
+    orientation: "landscape",
+    printBackground: true,
+    margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
+  },
+});
+
+console.log(certificate);
+// {
+//   id: "gen_abc123",
+//   status: "completed",
+//   url: "https://storage.docuforge.com/pdfs/gen_abc123.pdf",
+//   pages: 1,
+//   file_size: 48210,
+//   generation_time_ms: 320
+// }
+```
+
+A few things to note. Setting all margins to `0mm` lets the CSS handle spacing internally, which keeps the decorative border flush with the page edge. The `printBackground` option must be `true` or the cream background and gold gradient divider will not render. The response includes a hosted URL where the PDF is immediately available for download.
+
+Open the URL in a browser and confirm that the layout, fonts, QR code, and text substitution all look correct before moving on to batch generation. It is much easier to fix a styling issue now than after you have generated 500 certificates.
+
+## Step 3: Build a Verification Endpoint
+
+The QR code on each certificate links to a URL like `https://yoursite.com/verify/CERT-2026-00412`. For that link to mean anything, you need a verification endpoint that confirms the certificate is authentic and displays the relevant details.
+
+Start by storing certificate records whenever you generate one:
+
+```typescript
+// After each successful generation, persist the record
+await db.insert(certificates).values({
+  certificateId: "CERT-2026-00412",
+  studentName: "Alice Johnson",
+  courseTitle: "Advanced TypeScript Patterns",
+  completionDate: "2026-03-15",
+  pdfUrl: certificate.url,
+  generationId: certificate.id,
+  createdAt: new Date(),
+});
+```
+
+Then expose a route that looks up the record:
+
+```typescript
+app.get("/verify/:certificateId", async (req, res) => {
+  const record = await db
+    .select()
+    .from(certificates)
+    .where(eq(certificates.certificateId, req.params.certificateId))
+    .limit(1);
+
+  if (record.length === 0) {
+    return res.status(404).json({ valid: false, message: "Certificate not found" });
+  }
+
+  const cert = record[0];
+  return res.json({
+    valid: true,
+    student_name: cert.studentName,
+    course_title: cert.courseTitle,
+    completion_date: cert.completionDate,
+    pdf_url: cert.pdfUrl,
+  });
+});
+```
+
+When someone scans the QR code on a printed certificate, they land on this endpoint (or a frontend page that calls it) and see confirmation that the certificate is legitimate, along with the student name and course title. This is a simple but effective anti-fraud measure. If you want to go further, you can render a branded verification page with your logo and a green checkmark instead of returning raw JSON.
+
+## Step 4: Batch Generate for a Cohort
+
+Generating certificates one at a time works for individual completions, but when a cohort of 200 students finishes a course on the same day, you want a single API call. The `df.batch()` method accepts an array of generation items and processes them asynchronously via a job queue.
+
+```typescript
+const students = [
+  { name: "Alice Johnson", id: "CERT-2026-00412" },
+  { name: "Bob Martinez", id: "CERT-2026-00413" },
+  { name: "Clara Chen", id: "CERT-2026-00414" },
+  // ... up to hundreds of students
+];
+
+const batchResult = await df.batch({
+  items: students.map((student) => ({
+    template: "tmpl_xxxxxxxx",
+    data: {
+      student_name: student.name,
+      course_title: "Advanced TypeScript Patterns",
+      completion_date: "March 15, 2026",
+      certificate_id: student.id,
+    },
+    options: {
+      format: "A4",
+      orientation: "landscape",
+      printBackground: true,
+      margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
+    },
+  })),
+  webhook: "https://yoursite.com/webhooks/certificates-ready",
+});
+
+console.log(batchResult);
+// {
+//   batch_id: "batch_xyz789",
+//   total: 3,
+//   generations: [
+//     { id: "gen_001", index: 0 },
+//     { id: "gen_002", index: 1 },
+//     { id: "gen_003", index: 2 }
+//   ],
+//   status: "queued"
+// }
+```
+
+The response returns immediately with HTTP 202. Each item in the `generations` array has an `id` you can use to poll status with `df.getGeneration(id)`, but the more practical approach is the `webhook` parameter. When every item in the batch has finished processing, DocuForge sends a POST request to your webhook URL with the full results. Your webhook handler can then persist the certificate records and trigger email delivery, which you will set up in Step 6.
+
+The batch queue processes jobs with a concurrency of 5 and retries failed items up to 3 times with exponential backoff. For most cohort sizes, all certificates will be ready within a few minutes.
+
+## Step 5: Add a Watermark for Draft Previews
+
+Before you finalize a new certificate design or a new course title, it helps to generate a preview that is clearly marked as non-final. DocuForge supports text watermarks as a generation option. Add one during your review cycle and remove it for the production run.
+
+```typescript
+const preview = await df.fromTemplate({
+  template: "tmpl_xxxxxxxx",
+  data: {
+    student_name: "Test Student",
+    course_title: "Advanced TypeScript Patterns",
+    completion_date: "March 15, 2026",
+    certificate_id: "CERT-PREVIEW",
+  },
+  options: {
+    format: "A4",
+    orientation: "landscape",
+    printBackground: true,
+    margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
+  },
+  watermark: {
+    text: "PREVIEW",
+    color: "#888888",
+    opacity: 0.1,
+    angle: -45,
+    fontSize: 72,
+  },
+});
+```
+
+The watermark renders as a large diagonal text overlay across the page. An opacity of `0.1` keeps it visible enough to signal "draft" without obscuring the design underneath. Share the preview URL with your team for sign-off. Once the design is approved, remove the `watermark` property from your generation calls and proceed with the real batch run.
+
+This is also useful if you offer students a preview of their certificate before they make a final payment or complete a capstone project. Show them the watermarked version as motivation, then deliver the clean version upon completion.
+
+## Step 6: Email Certificates
+
+With the batch complete and PDF URLs in hand, the last step is delivering each certificate to its recipient. You can loop through the results and send an email with a download link, or attach the PDF directly.
+
+The simplest approach uses the hosted URL that DocuForge provides:
+
+```typescript
+import { Resend } from "resend";
+
+const resend = new Resend("re_your_api_key");
+
+async function emailCertificates(
+  students: { name: string; email: string; generationId: string }[]
+) {
+  for (const student of students) {
+    const generation = await df.getGeneration(student.generationId);
+
+    await resend.emails.send({
+      from: "certificates@youracademy.com",
+      to: student.email,
+      subject: "Your Course Completion Certificate",
+      html: `
+        <h2>Congratulations, ${student.name}!</h2>
+        <p>
+          You have successfully completed the course. Your certificate
+          is ready for download.
+        </p>
+        <p>
+          <a href="${generation.url}">Download your certificate (PDF)</a>
+        </p>
+        <p>
+          Your certificate can be independently verified at any time using
+          the QR code printed on it.
+        </p>
+      `,
+    });
+  }
+}
+```
+
+If you prefer to attach the PDF directly to the email instead of linking to a hosted URL, generate with `output: 'base64'` and pass the result as an attachment:
+
+```typescript
+const cert = await df.fromTemplate({
+  template: "tmpl_xxxxxxxx",
+  data: { /* student data */ },
+  options: {
+    format: "A4",
+    orientation: "landscape",
+    printBackground: true,
+    margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
+  },
+  output: "base64",
+});
+
+await resend.emails.send({
+  from: "certificates@youracademy.com",
+  to: "alice@example.com",
+  subject: "Your Course Completion Certificate",
+  html: "<p>Your certificate is attached.</p>",
+  attachments: [
+    {
+      filename: "certificate.pdf",
+      content: cert.url, // base64 string when output is 'base64'
+    },
+  ],
+});
+```
+
+The attachment approach guarantees the student has the file even if the hosted URL eventually expires, but it does increase email size. For most use cases, the download link is cleaner and avoids email deliverability issues that come with large attachments.
+
+When processing a large cohort, add a short delay between sends or use your email provider's batch API to avoid hitting rate limits.
+
+## Going Further
+
+You now have a complete pipeline: a polished template, single and batch generation, QR verification, draft previews, and email delivery. Here are a few directions to extend it.
+
+If your course platform handles payments, you can use the same template and generation pattern to produce Stripe-style invoices for each transaction. The [Stripe invoice tutorial](/blog/stripe-invoice-pdf-generation) walks through that setup.
+
+For more complex certificate layouts that include dynamic charts or interactive elements, consider building the certificate as a React component and rendering it with `df.generate({ react: ... })`. The [React PDF export guide](/blog/react-component-pdf-export) covers the approach in detail.
+
+Finally, if you need to fine-tune page dimensions, header and footer placement, or multi-page layouts, the [page layout guide](/blog/pdf-page-layout-headers-footers) is a useful reference.

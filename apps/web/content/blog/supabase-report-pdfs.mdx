@@ -1,0 +1,62 @@
+---
+title: "Generate Report PDFs from Supabase Data"
+description: "Pull data from your Supabase database and generate beautiful PDF reports with DocuForge. Complete tutorial with code examples."
+date: "2026-03-04"
+author: "DocuForge Team"
+category: "Integration"
+readingTime: 7
+---
+
+Supabase gives you a Postgres database with a great API. DocuForge gives you pixel-perfect PDFs. Together, they're a powerful combo for generating data-driven reports.
+
+## The Architecture
+
+1. Query your Supabase database for report data
+2. Pass the data to a DocuForge template
+3. Get back a PDF URL, stored and ready to share
+
+## Setup
+
+```bash
+npm install docuforge @supabase/supabase-js
+```
+
+## Querying Data and Generating PDFs
+
+```typescript
+import DocuForge from 'docuforge';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
+const docuforge = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+async function generateMonthlyReport(userId: string) {
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('created_at', startOfMonth());
+
+  const pdf = await docuforge.fromTemplate({
+    templateId: 'tmpl_monthly_report',
+    data: {
+      userName: orders?.[0]?.user_name,
+      totalOrders: orders?.length,
+      totalRevenue: orders?.reduce((sum, o) => sum + o.amount, 0),
+      orders: orders,
+    },
+  });
+
+  return pdf.url;
+}
+```
+
+## Scheduling Reports
+
+Use Supabase Edge Functions or a cron job to generate reports on a schedule. DocuForge's batch API handles high-volume generation efficiently.
+
+## Next Steps
+
+- Store PDF URLs back in Supabase for a complete audit trail
+- Set up automated email delivery for scheduled reports
+- Use [Supabase Realtime](https://supabase.com/realtime) to trigger PDFs on database changes

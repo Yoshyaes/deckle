@@ -1,0 +1,87 @@
+---
+title: POST /v1/generate
+description: Generate a PDF from HTML or a template.
+---
+
+# Generate PDF
+
+`POST https://api.docuforge.dev/v1/generate`
+
+Generate a pixel-perfect PDF from HTML or a saved template.
+
+## Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `html` | string | Either `html` or `template` | Raw HTML to convert to PDF |
+| `template` | string | Either `html` or `template` | Template ID (`tmpl_xxx`) |
+| `data` | object | No | Data to merge into template variables |
+| `options` | object | No | PDF rendering options (see below) |
+| `output` | string | No | `"url"` (default) or `"base64"` |
+| `webhook` | string | No | URL to POST when generation completes |
+
+### Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string or object | `"A4"` | `"A4"`, `"Letter"`, `"Legal"`, or `{ width, height }` |
+| `margin` | string or object | `"0.5in"` | Uniform margin string or `{ top, right, bottom, left }` |
+| `orientation` | string | `"portrait"` | `"portrait"` or `"landscape"` |
+| `header` | string | — | HTML for page header. Supports `{{pageNumber}}` and `{{totalPages}}` |
+| `footer` | string | — | HTML for page footer. Supports `{{pageNumber}}` and `{{totalPages}}` |
+| `printBackground` | boolean | `true` | Include background colors/images |
+
+## Example — HTML Mode
+
+```bash
+curl -X POST https://api.docuforge.dev/v1/generate \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "html": "<h1>Invoice #1234</h1><p>Amount: $500</p>",
+    "options": {
+      "format": "A4",
+      "margin": "1in",
+      "footer": "<div style=\"text-align:center;font-size:10px\">Page {{pageNumber}} of {{totalPages}}</div>"
+    }
+  }'
+```
+
+## Example — Template Mode
+
+```bash
+curl -X POST https://api.docuforge.dev/v1/generate \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "template": "tmpl_abc123",
+    "data": {
+      "company": "Acme Corp",
+      "items": [{"description": "Consulting", "qty": 10, "rate": 150}],
+      "total": 1500
+    }
+  }'
+```
+
+## Response
+
+```json
+{
+  "id": "gen_abc123",
+  "status": "completed",
+  "url": "https://cdn.docuforge.dev/gen_abc123.pdf",
+  "pages": 2,
+  "file_size": 45230,
+  "generation_time_ms": 1840
+}
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid request body |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 403 | `USAGE_LIMIT_EXCEEDED` | Monthly PDF limit reached |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error during rendering |

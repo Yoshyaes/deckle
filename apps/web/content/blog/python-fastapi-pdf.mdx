@@ -1,0 +1,56 @@
+---
+title: "PDF Generation in Python (FastAPI + DocuForge)"
+description: "Add PDF generation to your FastAPI application with the DocuForge Python SDK. Generate invoices, reports, and certificates in seconds."
+date: "2026-03-03"
+author: "DocuForge Team"
+category: "Python"
+readingTime: 5
+---
+
+Python developers deserve great PDF generation too. The DocuForge Python SDK uses httpx under the hood and supports both sync and async workflows.
+
+## Install
+
+```bash
+pip install docuforge
+```
+
+## Quick Start with FastAPI
+
+```python
+from fastapi import FastAPI
+from docuforge import DocuForge
+
+app = FastAPI()
+client = DocuForge("df_live_...")
+
+@app.post("/generate-pdf")
+async def generate_pdf(html: str):
+    pdf = client.generate(html=html, options={"format": "A4"})
+    return {"url": pdf.url, "pages": pdf.pages}
+```
+
+## Using Templates
+
+```python
+pdf = client.from_template(
+    template_id="tmpl_report_v1",
+    data={
+        "title": "Monthly Report",
+        "metrics": [
+            {"name": "Revenue", "value": "$12,450"},
+            {"name": "Users", "value": "1,234"},
+        ],
+    },
+)
+```
+
+## Generating Reports from Database Queries
+
+Pull data from your database, format it, and generate a PDF report — all in a single endpoint. DocuForge handles the rendering while you focus on your data.
+
+## Next Steps
+
+- Read the [Python SDK docs](https://docs.docuforge.dev)
+- Explore [Django integration](https://docs.docuforge.dev/guides/django)
+- Try [batch generation](https://docs.docuforge.dev/api-reference/generate) for bulk reports

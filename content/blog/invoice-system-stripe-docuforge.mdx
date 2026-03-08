@@ -1,0 +1,874 @@
+---
+title: "Build an Invoice System with Stripe + DocuForge"
+description: "Wire up Stripe payment events to automatically generate professional PDF invoices with DocuForge. Complete webhook handler and template included."
+slug: "invoice-system-stripe-docuforge"
+date: "2026-03-14"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["stripe", "invoices", "typescript", "templates", "tutorial"]
+readingTime: "12 min read"
+---
+
+## Introduction
+
+Stripe is the de facto standard for processing payments online. It handles charges, subscriptions, refunds, and dozens of other financial operations with remarkable reliability. But when a payment succeeds, your customers expect a proper invoice -- a formatted PDF they can download, forward to their accountant, or file away for tax season. Stripe's built-in invoices cover the basics, but they offer limited control over branding, layout, and the finer details that make your business look polished.
+
+That is where DocuForge comes in. DocuForge is a PDF generation API that accepts HTML templates and structured data, then returns pixel-perfect PDFs. By wiring Stripe payment events to DocuForge templates, you get a fully automated invoice pipeline: a customer pays, Stripe fires a webhook, your server maps the payment data into a Handlebars template, DocuForge renders the PDF, and you email it to the customer. No manual steps, no cron jobs, no brittle HTML-to-PDF libraries running on your own infrastructure.
+
+In this tutorial, you will build exactly that system. By the end, you will have a production-ready webhook handler that listens for `invoice.payment_succeeded` events from Stripe, generates a branded PDF invoice through DocuForge, and emails it to the customer using Resend. You will also learn how to use batch generation for monthly billing runs. The full source code is included at the end.
+
+**What you will need:**
+
+- A Stripe account with a webhook endpoint configured
+- A DocuForge API key (sign up at docuforge.com)
+- Node.js 18+ and TypeScript
+- A Resend API key for sending emails
+
+## Architecture Overview
+
+The system follows a straightforward event-driven flow. No polling, no scheduled jobs -- Stripe pushes events to your server the moment something happens.
+
+```
+Stripe Payment Succeeded
+        |
+        v
+  Webhook Endpoint (POST /api/webhooks/stripe)
+        |
+        v
+  Verify Stripe Signature
+        |
+        v
+  Extract Invoice Data (line items, customer, amounts)
+        |
+        v
+  DocuForge fromTemplate() --> PDF URL
+        |
+        v
+  Store PDF URL in Database
+        |
+        v
+  Email Invoice to Customer (Resend)
+```
+
+The tech stack is deliberately minimal. You will use Next.js API routes for the webhook handler, the official Stripe Node SDK for signature verification and data extraction, the DocuForge TypeScript SDK for PDF generation, and Resend for transactional email. If you prefer Express or Fastify, the core logic is identical -- only the route definition changes.
+
+All communication is synchronous except for the optional batch generation path, which uses DocuForge's async queue and webhook callbacks.
+
+## Step 1: Create the Invoice Template
+
+Before handling any Stripe events, you need an invoice template stored in DocuForge. Templates use Handlebars syntax for dynamic data and standard HTML/CSS for layout. Once created, you reference the template by ID and pass in different data for each invoice.
+
+Install the dependencies first:
+
+```bash
+npm install docuforge stripe resend
+```
+
+Here is a complete invoice template with professional styling:
+
+```typescript
+import DocuForge from "docuforge";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+const invoiceTemplate = await df.templates.create({
+  name: "Stripe Invoice",
+  html_content: `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          color: #1a1a1a;
+          padding: 60px;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 50px;
+        }
+        .company-name {
+          font-size: 28px;
+          font-weight: 700;
+          color: #111827;
+        }
+        .company-details {
+          color: #6b7280;
+          font-size: 13px;
+          margin-top: 4px;
+        }
+        .invoice-badge {
+          background: #f0fdf4;
+          color: #16a34a;
+          padding: 6px 16px;
+          border-radius: 20px;
+          font-weight: 600;
+          font-size: 13px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .invoice-meta {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 40px;
+          margin-bottom: 40px;
+          padding: 30px;
+          background: #f9fafb;
+          border-radius: 8px;
+        }
+        .meta-label {
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          color: #9ca3af;
+          font-weight: 600;
+          margin-bottom: 4px;
+        }
+        .meta-value {
+          font-size: 15px;
+          font-weight: 500;
+          color: #111827;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 30px;
+        }
+        thead th {
+          text-align: left;
+          padding: 12px 16px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          color: #6b7280;
+          font-weight: 600;
+          border-bottom: 2px solid #e5e7eb;
+        }
+        thead th:last-child { text-align: right; }
+        tbody td {
+          padding: 14px 16px;
+          border-bottom: 1px solid #f3f4f6;
+          color: #374151;
+        }
+        tbody td:last-child {
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+        }
+        .totals {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 10px;
+        }
+        .totals-table {
+          width: 280px;
+        }
+        .totals-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 8px 0;
+          font-size: 14px;
+          color: #6b7280;
+        }
+        .totals-row.total {
+          border-top: 2px solid #111827;
+          margin-top: 8px;
+          padding-top: 12px;
+          font-size: 18px;
+          font-weight: 700;
+          color: #111827;
+        }
+        .payment-note {
+          margin-top: 50px;
+          padding: 20px;
+          background: #f0fdf4;
+          border-left: 4px solid #16a34a;
+          border-radius: 0 8px 8px 0;
+          color: #166534;
+          font-size: 13px;
+        }
+        .footer-note {
+          margin-top: 40px;
+          text-align: center;
+          color: #9ca3af;
+          font-size: 12px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div>
+          <div class="company-name">{{company_name}}</div>
+          <div class="company-details">{{company_address}}</div>
+          <div class="company-details">{{company_email}}</div>
+        </div>
+        <div class="invoice-badge">Paid</div>
+      </div>
+
+      <div class="invoice-meta">
+        <div>
+          <div class="meta-label">Invoice Number</div>
+          <div class="meta-value">{{invoice_number}}</div>
+          <div style="margin-top: 16px;">
+            <div class="meta-label">Date Issued</div>
+            <div class="meta-value">{{date}}</div>
+          </div>
+        </div>
+        <div>
+          <div class="meta-label">Bill To</div>
+          <div class="meta-value">{{customer_name}}</div>
+          <div style="color: #6b7280; font-size: 13px; margin-top: 2px;">
+            {{customer_email}}
+          </div>
+          {{#if customer_address}}
+          <div style="color: #6b7280; font-size: 13px; margin-top: 2px;">
+            {{customer_address}}
+          </div>
+          {{/if}}
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each line_items}}
+          <tr>
+            <td>{{this.description}}</td>
+            <td>{{this.quantity}}</td>
+            <td>{{this.unit_price}}</td>
+            <td>{{this.amount}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+
+      <div class="totals">
+        <div class="totals-table">
+          <div class="totals-row">
+            <span>Subtotal</span>
+            <span>{{subtotal}}</span>
+          </div>
+          {{#if tax}}
+          <div class="totals-row">
+            <span>Tax</span>
+            <span>{{tax}}</span>
+          </div>
+          {{/if}}
+          <div class="totals-row total">
+            <span>Total</span>
+            <span>{{amount_due}}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="payment-note">
+        Payment of {{amount_due}} received on {{date}}. Thank you for your business.
+      </div>
+
+      <div class="footer-note">
+        {{company_name}} &middot; {{company_email}}
+      </div>
+    </body>
+    </html>
+  `,
+  schema: {
+    company_name: { type: "string", required: true },
+    company_address: { type: "string", required: true },
+    company_email: { type: "string", required: true },
+    customer_name: { type: "string", required: true },
+    customer_email: { type: "string", required: true },
+    customer_address: { type: "string", required: false },
+    invoice_number: { type: "string", required: true },
+    date: { type: "string", required: true },
+    line_items: {
+      type: "array",
+      required: true,
+      items: {
+        description: { type: "string" },
+        quantity: { type: "number" },
+        unit_price: { type: "string" },
+        amount: { type: "string" },
+      },
+    },
+    subtotal: { type: "string", required: true },
+    tax: { type: "string", required: false },
+    amount_due: { type: "string", required: true },
+  },
+});
+
+// Save this ID -- you will reference it in the webhook handler
+console.log("Template created:", invoiceTemplate.id);
+// Example: tmpl_a1b2c3d4e5f6
+```
+
+Run this script once to create the template. Store the returned template ID in your environment variables as `INVOICE_TEMPLATE_ID`. The schema definition is optional but useful -- it documents what data the template expects and enables validation when generating PDFs.
+
+## Step 2: Set Up Stripe Webhook Handler
+
+Stripe webhooks are HTTP POST requests signed with a secret so you can verify they actually came from Stripe. The critical event for invoice generation is `invoice.payment_succeeded`, which fires after a successful charge on a subscription or one-off invoice.
+
+First, configure your Stripe webhook in the Stripe Dashboard (Developers > Webhooks). Point it to your endpoint URL and select the `invoice.payment_succeeded` event. Copy the webhook signing secret.
+
+Here is the webhook handler:
+
+```typescript
+// app/api/webhooks/stripe/route.ts (Next.js App Router)
+import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-12-18.acacia",
+});
+
+export async function POST(req: NextRequest) {
+  const body = await req.text();
+  const signature = req.headers.get("stripe-signature");
+
+  if (!signature) {
+    return NextResponse.json(
+      { error: "Missing stripe-signature header" },
+      { status: 400 }
+    );
+  }
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
+  } catch (err) {
+    console.error("Webhook signature verification failed:", err);
+    return NextResponse.json(
+      { error: "Invalid signature" },
+      { status: 400 }
+    );
+  }
+
+  if (event.type === "invoice.payment_succeeded") {
+    const invoice = event.data.object as Stripe.Invoice;
+    await handleInvoicePaid(invoice);
+  }
+
+  // Acknowledge receipt immediately -- Stripe retries on timeout
+  return NextResponse.json({ received: true });
+}
+
+async function handleInvoicePaid(invoice: Stripe.Invoice) {
+  const templateData = mapStripeInvoice(invoice);
+  const pdfUrl = await generateInvoicePdf(templateData);
+  await emailInvoice(invoice.customer_email!, pdfUrl, templateData);
+}
+```
+
+Now the data mapping function. Stripe amounts are in cents, so you need to convert them. Line item descriptions, quantities, and amounts need to be extracted and formatted:
+
+```typescript
+interface InvoiceTemplateData {
+  company_name: string;
+  company_address: string;
+  company_email: string;
+  customer_name: string;
+  customer_email: string;
+  customer_address?: string;
+  invoice_number: string;
+  date: string;
+  line_items: {
+    description: string;
+    quantity: number;
+    unit_price: string;
+    amount: string;
+  }[];
+  subtotal: string;
+  tax?: string;
+  amount_due: string;
+}
+
+function formatCents(cents: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(cents / 100);
+}
+
+function mapStripeInvoice(invoice: Stripe.Invoice): InvoiceTemplateData {
+  const currency = invoice.currency;
+
+  const lineItems = (invoice.lines?.data ?? []).map((line) => ({
+    description: line.description ?? "Service",
+    quantity: line.quantity ?? 1,
+    unit_price: formatCents(line.unit_amount_excluding_tax
+      ? parseInt(line.unit_amount_excluding_tax)
+      : (line.amount / (line.quantity ?? 1)), currency),
+    amount: formatCents(line.amount, currency),
+  }));
+
+  return {
+    company_name: process.env.COMPANY_NAME ?? "Your Company",
+    company_address: process.env.COMPANY_ADDRESS ?? "",
+    company_email: process.env.COMPANY_EMAIL ?? "",
+    customer_name: invoice.customer_name ?? "Customer",
+    customer_email: invoice.customer_email ?? "",
+    customer_address: invoice.customer_address?.line1
+      ? [
+          invoice.customer_address.line1,
+          invoice.customer_address.city,
+          invoice.customer_address.state,
+          invoice.customer_address.postal_code,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : undefined,
+    invoice_number: invoice.number ?? invoice.id,
+    date: new Date((invoice.status_transitions?.paid_at ?? Date.now() / 1000) * 1000)
+      .toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    line_items: lineItems,
+    subtotal: formatCents(invoice.subtotal, currency),
+    tax: invoice.tax ? formatCents(invoice.tax, currency) : undefined,
+    amount_due: formatCents(invoice.amount_paid, currency),
+  };
+}
+```
+
+The mapping function handles the common edge cases: missing customer names, null quantities, and address formatting. The `formatCents` helper uses `Intl.NumberFormat` so it works correctly with any currency Stripe supports.
+
+## Step 3: Generate the Invoice PDF
+
+With the template created and the Stripe data mapped, generating the PDF is a single SDK call. The `fromTemplate` method accepts the template ID and a data object that fills in the Handlebars placeholders.
+
+```typescript
+import DocuForge from "docuforge";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+async function generateInvoicePdf(data: InvoiceTemplateData): Promise<string> {
+  const pdf = await df.fromTemplate({
+    template: process.env.INVOICE_TEMPLATE_ID!,
+    data,
+    options: {
+      format: "A4",
+      margin: {
+        top: "20mm",
+        right: "20mm",
+        bottom: "30mm",
+        left: "20mm",
+      },
+      printBackground: true,
+      footer: `
+        <div style="width: 100%; text-align: center; font-size: 10px; color: #9ca3af;">
+          Page {{pageNumber}} of {{totalPages}}
+        </div>
+      `,
+    },
+  });
+
+  console.log(`Invoice PDF generated: ${pdf.id}`);
+  console.log(`  URL: ${pdf.url}`);
+  console.log(`  Pages: ${pdf.pages}, Size: ${pdf.file_size} bytes`);
+  console.log(`  Rendered in ${pdf.generation_time_ms}ms`);
+
+  // Store the generation record in your database
+  // await db.invoicePdfs.create({
+  //   stripeInvoiceId: data.invoice_number,
+  //   generationId: pdf.id,
+  //   pdfUrl: pdf.url,
+  //   createdAt: new Date(),
+  // });
+
+  return pdf.url;
+}
+```
+
+The response includes everything you need: a hosted URL where the PDF can be downloaded, the page count, file size, and how long the render took. DocuForge hosts the file for you, so there is no need to set up your own storage bucket unless you want to.
+
+The footer uses the `{{pageNumber}}` and `{{totalPages}}` interpolation variables that DocuForge injects automatically. These work independently of the Handlebars template variables in the body -- they are processed by the PDF renderer at print time.
+
+If you want to store the PDF yourself rather than using the hosted URL, pass `output: 'base64'` and the response will include the raw PDF bytes instead of a URL. This is useful if you need to upload to your own S3 bucket or attach directly to an email.
+
+## Step 4: Email the Invoice
+
+With the PDF URL in hand, sending the invoice email is straightforward. Resend provides a clean API for transactional email with attachment support.
+
+```typescript
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY!);
+
+async function emailInvoice(
+  customerEmail: string,
+  pdfUrl: string,
+  data: InvoiceTemplateData
+) {
+  await resend.emails.send({
+    from: `${data.company_name} <billing@${process.env.EMAIL_DOMAIN}>`,
+    to: customerEmail,
+    subject: `Invoice ${data.invoice_number} - ${data.amount_due}`,
+    html: `
+      <p>Hi ${data.customer_name},</p>
+      <p>Thank you for your payment of <strong>${data.amount_due}</strong>.</p>
+      <p>Your invoice is ready:
+        <a href="${pdfUrl}">Download Invoice ${data.invoice_number}</a>
+      </p>
+      <p>Best regards,<br>${data.company_name}</p>
+    `,
+  });
+
+  console.log(`Invoice emailed to ${customerEmail}`);
+}
+```
+
+This approach sends a link to the hosted PDF. The customer clicks the link and downloads the file. For many use cases, this is preferable -- the email stays small and the PDF is always accessible.
+
+If your customers expect the PDF as an email attachment, use the `base64` output option and attach it directly:
+
+```typescript
+async function emailInvoiceWithAttachment(
+  customerEmail: string,
+  data: InvoiceTemplateData
+) {
+  const pdf = await df.fromTemplate({
+    template: process.env.INVOICE_TEMPLATE_ID!,
+    data,
+    output: "base64",
+  });
+
+  await resend.emails.send({
+    from: `${data.company_name} <billing@${process.env.EMAIL_DOMAIN}>`,
+    to: customerEmail,
+    subject: `Invoice ${data.invoice_number} - ${data.amount_due}`,
+    html: `
+      <p>Hi ${data.customer_name},</p>
+      <p>Thank you for your payment. Your invoice is attached.</p>
+      <p>Best regards,<br>${data.company_name}</p>
+    `,
+    attachments: [
+      {
+        filename: `invoice-${data.invoice_number}.pdf`,
+        content: pdf.url, // base64 string when output is 'base64'
+      },
+    ],
+  });
+}
+```
+
+Choose whichever approach fits your customers. The hosted URL is simpler and keeps email deliverability high. The attachment approach gives customers the file immediately without clicking a link.
+
+## Step 5: Batch Invoices for Monthly Billing
+
+If you run a subscription business, you might need to generate dozens or hundreds of invoices at the end of each billing cycle. Generating them one by one would be slow and wasteful. DocuForge's batch endpoint handles this efficiently -- you submit all invoices in a single request, and they are processed concurrently on DocuForge's infrastructure.
+
+```typescript
+async function generateMonthlyInvoices(
+  invoices: InvoiceTemplateData[]
+) {
+  const batchItems = invoices.map((data) => ({
+    template: process.env.INVOICE_TEMPLATE_ID!,
+    data,
+    options: {
+      format: "A4" as const,
+      margin: { top: "20mm", right: "20mm", bottom: "30mm", left: "20mm" },
+      printBackground: true,
+      footer: `
+        <div style="width: 100%; text-align: center; font-size: 10px; color: #9ca3af;">
+          Page {{pageNumber}} of {{totalPages}}
+        </div>
+      `,
+    },
+  }));
+
+  const batch = await df.batch({
+    items: batchItems,
+    webhook: "https://your-app.com/api/webhooks/docuforge-batch",
+  });
+
+  console.log(`Batch submitted: ${batch.batch_id}`);
+  console.log(`Total invoices: ${batch.total}`);
+  console.log(`Status: ${batch.status}`); // "queued"
+
+  // Each item gets a generation ID for tracking
+  for (const gen of batch.generations) {
+    console.log(`  Invoice #${gen.index}: ${gen.id}`);
+  }
+
+  return batch;
+}
+```
+
+The batch endpoint returns HTTP 202 with a `batch_id` and the status `"queued"`. Each item in the batch gets its own generation ID that you can use to track progress.
+
+There are two ways to know when the batch is complete. The recommended approach is the webhook callback -- DocuForge will POST to your webhook URL when all items are finished. Alternatively, you can poll individual generations:
+
+```typescript
+async function pollGeneration(generationId: string): Promise<string> {
+  const maxAttempts = 30;
+  const delayMs = 2000;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const generation = await df.getGeneration(generationId);
+
+    if (generation.status === "completed") {
+      return generation.url;
+    }
+
+    if (generation.status === "failed") {
+      throw new Error(`Generation ${generationId} failed`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  throw new Error(`Generation ${generationId} timed out`);
+}
+```
+
+For production use, the webhook approach is strongly preferred. Polling works for development and debugging but wastes API calls at scale.
+
+## Complete Code
+
+Here is the consolidated code for the entire invoice system. This is a single Next.js API route file that handles the Stripe webhook, generates the PDF, and sends the email:
+
+```typescript
+// app/api/webhooks/stripe/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
+import DocuForge from "docuforge";
+import { Resend } from "resend";
+
+// --- Clients ---
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-12-18.acacia",
+});
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+const resend = new Resend(process.env.RESEND_API_KEY!);
+
+// --- Types ---
+
+interface InvoiceTemplateData {
+  company_name: string;
+  company_address: string;
+  company_email: string;
+  customer_name: string;
+  customer_email: string;
+  customer_address?: string;
+  invoice_number: string;
+  date: string;
+  line_items: {
+    description: string;
+    quantity: number;
+    unit_price: string;
+    amount: string;
+  }[];
+  subtotal: string;
+  tax?: string;
+  amount_due: string;
+}
+
+// --- Helpers ---
+
+function formatCents(cents: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(cents / 100);
+}
+
+function mapStripeInvoice(invoice: Stripe.Invoice): InvoiceTemplateData {
+  const currency = invoice.currency;
+
+  const lineItems = (invoice.lines?.data ?? []).map((line) => ({
+    description: line.description ?? "Service",
+    quantity: line.quantity ?? 1,
+    unit_price: formatCents(
+      line.unit_amount_excluding_tax
+        ? parseInt(line.unit_amount_excluding_tax)
+        : line.amount / (line.quantity ?? 1),
+      currency
+    ),
+    amount: formatCents(line.amount, currency),
+  }));
+
+  return {
+    company_name: process.env.COMPANY_NAME ?? "Your Company",
+    company_address: process.env.COMPANY_ADDRESS ?? "",
+    company_email: process.env.COMPANY_EMAIL ?? "",
+    customer_name: invoice.customer_name ?? "Customer",
+    customer_email: invoice.customer_email ?? "",
+    customer_address: invoice.customer_address?.line1
+      ? [
+          invoice.customer_address.line1,
+          invoice.customer_address.city,
+          invoice.customer_address.state,
+          invoice.customer_address.postal_code,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : undefined,
+    invoice_number: invoice.number ?? invoice.id,
+    date: new Date(
+      (invoice.status_transitions?.paid_at ?? Date.now() / 1000) * 1000
+    ).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }),
+    line_items: lineItems,
+    subtotal: formatCents(invoice.subtotal, currency),
+    tax: invoice.tax ? formatCents(invoice.tax, currency) : undefined,
+    amount_due: formatCents(invoice.amount_paid, currency),
+  };
+}
+
+// --- PDF Generation ---
+
+async function generateInvoicePdf(
+  data: InvoiceTemplateData
+): Promise<string> {
+  const pdf = await df.fromTemplate({
+    template: process.env.INVOICE_TEMPLATE_ID!,
+    data,
+    options: {
+      format: "A4",
+      margin: { top: "20mm", right: "20mm", bottom: "30mm", left: "20mm" },
+      printBackground: true,
+      footer: `
+        <div style="width: 100%; text-align: center; font-size: 10px; color: #9ca3af;">
+          Page {{pageNumber}} of {{totalPages}}
+        </div>
+      `,
+    },
+  });
+
+  console.log(
+    `Invoice PDF generated: ${pdf.id} (${pdf.pages} pages, ${pdf.file_size} bytes, ${pdf.generation_time_ms}ms)`
+  );
+
+  return pdf.url;
+}
+
+// --- Email ---
+
+async function emailInvoice(
+  customerEmail: string,
+  pdfUrl: string,
+  data: InvoiceTemplateData
+) {
+  await resend.emails.send({
+    from: `${data.company_name} <billing@${process.env.EMAIL_DOMAIN}>`,
+    to: customerEmail,
+    subject: `Invoice ${data.invoice_number} - ${data.amount_due}`,
+    html: `
+      <p>Hi ${data.customer_name},</p>
+      <p>Thank you for your payment of <strong>${data.amount_due}</strong>.</p>
+      <p>Your invoice is ready:
+        <a href="${pdfUrl}">Download Invoice ${data.invoice_number}</a>
+      </p>
+      <p>Best regards,<br>${data.company_name}</p>
+    `,
+  });
+
+  console.log(`Invoice emailed to ${customerEmail}`);
+}
+
+// --- Webhook Handler ---
+
+export async function POST(req: NextRequest) {
+  const body = await req.text();
+  const signature = req.headers.get("stripe-signature");
+
+  if (!signature) {
+    return NextResponse.json(
+      { error: "Missing stripe-signature header" },
+      { status: 400 }
+    );
+  }
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
+  } catch (err) {
+    console.error("Webhook signature verification failed:", err);
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  }
+
+  if (event.type === "invoice.payment_succeeded") {
+    const invoice = event.data.object as Stripe.Invoice;
+
+    try {
+      const data = mapStripeInvoice(invoice);
+      const pdfUrl = await generateInvoicePdf(data);
+
+      if (invoice.customer_email) {
+        await emailInvoice(invoice.customer_email, pdfUrl, data);
+      }
+    } catch (err) {
+      console.error("Failed to process invoice:", err);
+      // Return 500 so Stripe retries the webhook
+      return NextResponse.json(
+        { error: "Processing failed" },
+        { status: 500 }
+      );
+    }
+  }
+
+  return NextResponse.json({ received: true });
+}
+```
+
+**Environment variables** -- add these to your `.env.local`:
+
+```bash
+# Stripe
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# DocuForge
+DOCUFORGE_API_KEY=df_live_...
+INVOICE_TEMPLATE_ID=tmpl_...
+
+# Resend
+RESEND_API_KEY=re_...
+EMAIL_DOMAIN=yourdomain.com
+
+# Company info (used in invoice template)
+COMPANY_NAME="Acme Inc"
+COMPANY_ADDRESS="123 Main St, San Francisco, CA 94102"
+COMPANY_EMAIL="billing@acme.com"
+```
+
+A few production considerations worth noting. First, return 500 from the webhook if PDF generation or email fails -- Stripe will retry the event with exponential backoff for up to 3 days. Second, add idempotency checks by storing processed Stripe event IDs so you do not generate duplicate invoices on retries. Third, consider generating the PDF asynchronously with a background job if webhook response time is a concern -- Stripe expects a response within 20 seconds.
+
+## Going Further
+
+This tutorial covered the core flow: Stripe payment to PDF invoice to customer email. There are several directions you can take it from here.
+
+For **reporting**, look at our guide on [generating Supabase reports with DocuForge](/blog/supabase-reports-docuforge) -- the same template and batch patterns apply to monthly financial summaries.
+
+If you want more control over **page layout** -- custom headers per page, landscape tables, or page break control -- the [page layout and headers guide](/blog/page-layout-headers-footers) covers all the options available in the `PDFOptions` object.
+
+For teams building a full SaaS billing portal, the [Next.js integration guide](/docs/frameworks/nextjs) shows how to add a customer-facing invoice history page with on-demand PDF regeneration.
+
+The complete source code from this tutorial is available in the [DocuForge examples repository](https://github.com/docuforge/examples/tree/main/stripe-invoices).

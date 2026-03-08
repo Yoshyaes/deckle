@@ -1,0 +1,109 @@
+---
+title: Quickstart
+description: Generate your first PDF in under 5 minutes.
+---
+
+# Quickstart
+
+Get from zero to a generated PDF in 5 minutes.
+
+## 1. Get an API Key
+
+Sign up at [app.docuforge.dev](https://app.docuforge.dev) and copy your API key from the dashboard. It starts with `df_live_`.
+
+## 2. Install the SDK
+
+<CodeGroup>
+```bash npm
+npm install docuforge
+```
+```bash pip
+pip install docuforge
+```
+</CodeGroup>
+
+## 3. Generate Your First PDF
+
+<CodeGroup>
+```typescript TypeScript
+import { DocuForge } from 'docuforge';
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY);
+
+const pdf = await df.generate({
+  html: `
+    <h1>Hello from DocuForge</h1>
+    <p>This took 30 seconds, not 3 days.</p>
+  `,
+  options: { format: 'A4' }
+});
+
+console.log(pdf.url);
+```
+
+```python Python
+from docuforge import DocuForge
+
+df = DocuForge("df_live_...")
+
+pdf = df.generate(
+    html="<h1>Hello from DocuForge</h1><p>This took 30 seconds, not 3 days.</p>",
+    options={"format": "A4"}
+)
+
+print(pdf.url)
+```
+</CodeGroup>
+
+## 4. Use Templates
+
+Create a reusable template and merge data on each call:
+
+```typescript
+// Create a template
+const template = await df.templates.create({
+  name: 'Invoice',
+  html_content: `
+    <h1>Invoice for {{company}}</h1>
+    <table>
+      {{#each items}}
+      <tr>
+        <td>{{description}}</td>
+        <td>{{qty}} × ${{rate}}</td>
+      </tr>
+      {{/each}}
+    </table>
+    <h2>Total: ${{total}}</h2>
+  `
+});
+
+// Generate from template
+const pdf = await df.fromTemplate({
+  template: template.id,
+  data: {
+    company: 'Acme Corp',
+    items: [{ description: 'Consulting', qty: 10, rate: 150 }],
+    total: 1500
+  }
+});
+```
+
+## 5. Add Headers & Footers
+
+```typescript
+const pdf = await df.generate({
+  html: invoiceHTML,
+  options: {
+    format: 'A4',
+    margin: { top: '1in', bottom: '1in', left: '0.75in', right: '0.75in' },
+    header: '<div style="font-size:10px;text-align:center">Acme Corp</div>',
+    footer: '<div style="font-size:10px;text-align:center">Page {{pageNumber}} of {{totalPages}}</div>'
+  }
+});
+```
+
+## Next Steps
+
+- [Authentication](/authentication) — Learn about API key management
+- [API Reference](/api-reference/generate) — Full endpoint documentation
+- [Guides](/guides/nextjs) — Framework-specific tutorials

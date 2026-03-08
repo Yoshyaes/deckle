@@ -1,0 +1,88 @@
+---
+title: "DocuForge vs PDFMonkey"
+description: "Compare DocuForge and PDFMonkey for PDF generation"
+---
+
+# DocuForge vs PDFMonkey
+
+PDFMonkey is a template-based PDF generation service focused on visual template design. DocuForge offers both template-based and code-first approaches (HTML, React) with full programmatic control.
+
+## Feature Comparison
+
+| Feature | DocuForge | PDFMonkey |
+|---------|-----------|-----------|
+| **HTML-to-PDF** | Yes (full CSS3) | No (template-only) |
+| **React-to-PDF** | Yes | No |
+| **Template engine** | Yes (Handlebars + visual editor) | Yes (Liquid + visual editor) |
+| **Free tier** | 1,000 PDFs/month | 300 PDFs/month |
+| **Pricing** | From $29/mo | From €19/mo |
+| **SDKs** | TypeScript, Python, Go, Ruby | JavaScript, Ruby |
+| **Batch generation** | Built-in API | Built-in |
+| **Custom fonts** | Upload via API | Dashboard upload |
+| **MCP server** | Yes | No |
+| **Self-hosted** | Docker option | No |
+| **PDF merge/split** | Yes | No |
+| **Digital signatures** | Yes | No |
+
+## Key Differences
+
+**PDFMonkey** is template-only — you design templates in their editor and merge data via API. You cannot send raw HTML.
+
+**DocuForge** supports three input modes:
+1. **HTML** — send any HTML/CSS, get a PDF back
+2. **React** — send JSX components, rendered server-side
+3. **Templates** — visual editor with Handlebars variables
+
+This flexibility means DocuForge works for both quick one-off PDFs and production template workflows.
+
+## Code Comparison
+
+### PDFMonkey
+
+```javascript
+const response = await fetch('https://api.pdfmonkey.io/api/v1/documents', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    document: {
+      document_template_id: 'TEMPLATE_ID',
+      payload: { name: 'John Doe', amount: 500 },
+      status: 'pending',
+    },
+  }),
+});
+```
+
+### DocuForge
+
+```typescript
+import { DocuForge } from 'docuforge';
+const df = new DocuForge('df_live_...');
+
+// Template mode (like PDFMonkey)
+const pdf = await df.fromTemplate({
+  template: 'tmpl_invoice_v2',
+  data: { name: 'John Doe', amount: 500 },
+});
+
+// Or just send HTML directly
+const pdf2 = await df.generate({
+  html: '<h1>Hello World</h1>',
+});
+```
+
+## When to Choose PDFMonkey
+
+- Your team is non-technical and needs a purely visual workflow
+- You only need template-based generation
+- You prefer Liquid templating over Handlebars
+
+## When to Choose DocuForge
+
+- You need HTML-to-PDF or React-to-PDF (not just templates)
+- You want more SDKs and language support
+- You need PDF tools (merge, split, protect, sign)
+- You want a more generous free tier

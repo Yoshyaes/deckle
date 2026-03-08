@@ -1,0 +1,430 @@
+---
+title: "How to Generate PDFs in Next.js with DocuForge"
+description: "Learn to add PDF generation to your Next.js app in under 10 minutes. Build an API route, generate from HTML and templates, and add a download button."
+slug: "generate-pdfs-nextjs-docuforge"
+date: "2026-03-10"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["next.js", "typescript", "pdf-generation", "tutorial"]
+readingTime: "9 min read"
+---
+
+# How to Generate PDFs in Next.js with DocuForge
+
+If you have built anything beyond a toy Next.js application, you have probably run into the need to generate PDFs. Invoices after a successful checkout. Monthly reports for a dashboard. Receipts emailed to customers. Shipping labels. The list goes on.
+
+The naive approach is to reach for a browser-based library and render PDFs on the client. That works for simple cases, but it falls apart quickly. You leak API keys. You lose control over layout consistency across browsers. And you burden the user's device with heavy rendering work.
+
+Server-side PDF generation solves all of that. Your API keys stay on the server. You get pixel-perfect output from a headless Chromium instance. And you can generate PDFs asynchronously without blocking the UI.
+
+In this tutorial, you will build a complete PDF generation flow in a Next.js 14 application using DocuForge. By the end, you will have an API route that generates PDFs from raw HTML, a reusable template system with Handlebars, headers and footers with page numbers, and a clean client-side download button.
+
+## Prerequisites
+
+Before you start, make sure you have the following:
+
+- **Next.js 14+** with the App Router enabled
+- A **DocuForge account** and API key (grab one from the [dashboard](/dashboard))
+- **Node.js 18** or later
+
+That is everything. No Puppeteer installation, no Chromium binaries, no wkhtmltopdf nightmares.
+
+## Step 1: Install the SDK
+
+Install the `docuforge` npm package in your Next.js project:
+
+```bash
+npm install docuforge
+```
+
+Then add your API key to `.env.local`. Never commit this file to version control.
+
+```bash
+DOCUFORGE_API_KEY=df_live_your_api_key_here
+```
+
+The SDK reads this key when you instantiate the client. Since Next.js API routes and Server Actions run on the server, the key is never exposed to the browser. This is exactly why server-side generation matters.
+
+With the SDK installed, you are ready to write your first API route.
+
+## Step 2: Create a Server-Side API Route
+
+Create a new file at `app/api/generate-pdf/route.ts`. This route will accept a POST request with HTML content and return a generated PDF.
+
+```typescript
+// app/api/generate-pdf/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import DocuForge from "docuforge";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+export async function POST(request: NextRequest) {
+  try {
+    const { html } = await request.json();
+
+    if (!html) {
+      return NextResponse.json(
+        { error: "Missing html field in request body" },
+        { status: 400 }
+      );
+    }
+
+    const result = await df.generate({
+      html,
+      options: {
+        format: "A4",
+        margin: { top: "20mm", right: "15mm", bottom: "20mm", left: "15mm" },
+        printBackground: true,
+      },
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("PDF generation failed:", error);
+    return NextResponse.json(
+      { error: "Failed to generate PDF" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+The `df.generate()` call sends your HTML to DocuForge's rendering pipeline, which uses a headless Chromium instance to produce a pixel-perfect PDF. The response includes everything you need:
+
+```json
+{
+  "id": "gen_abc123xyz",
+  "status": "completed",
+  "url": "https://storage.docuforge.com/pdfs/gen_abc123xyz.pdf",
+  "pages": 1,
+  "file_size": 48210,
+  "generation_time_ms": 320
+}
+```
+
+The `url` field is a direct link to the generated PDF. You can redirect users to it, embed it in an iframe, or download it programmatically. The `id` field lets you look up the generation later in your history.
+
+Notice that the DocuForge client is instantiated outside the handler. This avoids creating a new client on every request and keeps the connection efficient.
+
+## Step 3: Build a Client-Side Download Button
+
+Now wire up a React component that calls your API route and opens the generated PDF. Create a new file at `app/components/pdf-download-button.tsx`.
+
+```tsx
+// app/components/pdf-download-button.tsx
+"use client";
+
+import { useState } from "react";
+
+interface PdfDownloadButtonProps {
+  html: string;
+  label?: string;
+}
+
+export function PdfDownloadButton({
+  html,
+  label = "Download PDF",
+}: PdfDownloadButtonProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleGenerate() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/generate-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ html }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Generation failed");
+      }
+
+      const result = await response.json();
+      window.open(result.url, "_blank");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div>
+      <button
+        onClick={handleGenerate}
+        disabled={loading}
+        className="rounded-md bg-orange-500 px-4 py-2 text-white font-medium
+                   hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? "Generating..." : label}
+      </button>
+      {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
+    </div>
+  );
+}
+```
+
+Use it anywhere in your app by passing an HTML string:
+
+```tsx
+<PdfDownloadButton
+  html="<h1>Hello from DocuForge</h1><p>This is a generated PDF.</p>"
+  label="Generate Invoice"
+/>
+```
+
+The component handles three states: idle, loading, and error. When the PDF is ready, it opens in a new tab. In a production app, you might want to trigger a file download instead by fetching the PDF URL as a blob and using a temporary anchor element. But for most use cases, opening the URL directly is the simplest approach.
+
+## Step 4: Use Templates for Production Layouts
+
+Hardcoding HTML strings works for prototyping, but production applications need reusable templates. DocuForge templates use Handlebars syntax, which gives you variables, loops, and conditionals without the overhead of a full templating engine on your side.
+
+First, create a template. You would typically do this once, either through the dashboard or programmatically during setup:
+
+```typescript
+// scripts/create-invoice-template.ts
+import DocuForge from "docuforge";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+async function createTemplate() {
+  const template = await df.templates.create({
+    name: "Invoice",
+    html_content: `
+      <html>
+        <head>
+          <style>
+            body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #1a1a1a; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+            .company { font-size: 24px; font-weight: bold; }
+            .invoice-number { color: #666; font-size: 14px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+            th { text-align: left; border-bottom: 2px solid #1a1a1a; padding: 10px 0; }
+            td { padding: 10px 0; border-bottom: 1px solid #eee; }
+            .total { font-size: 20px; font-weight: bold; text-align: right; margin-top: 30px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="company">{{companyName}}</div>
+            <div class="invoice-number">Invoice #{{invoiceNumber}}</div>
+          </div>
+          <p>Bill to: <strong>{{customerName}}</strong></p>
+          <p>Date: {{date}}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Quantity</th>
+                <th>Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each items}}
+              <tr>
+                <td>{{this.name}}</td>
+                <td>{{this.quantity}}</td>
+                <td>\${{this.price}}</td>
+              </tr>
+              {{/each}}
+            </tbody>
+          </table>
+          <div class="total">Total: \${{total}}</div>
+        </body>
+      </html>
+    `,
+    schema: {
+      companyName: "string",
+      invoiceNumber: "string",
+      customerName: "string",
+      date: "string",
+      items: "array",
+      total: "number",
+    },
+  });
+
+  console.log("Template created:", template.id);
+}
+
+createTemplate();
+```
+
+Now generate PDFs from that template by passing the template ID and your data:
+
+```typescript
+// In your API route or Server Action
+const result = await df.fromTemplate({
+  template: "tmpl_abc123", // your template ID
+  data: {
+    companyName: "Acme Corp",
+    invoiceNumber: "INV-2026-0042",
+    customerName: "Jane Smith",
+    date: "March 10, 2026",
+    items: [
+      { name: "Pro Plan (Annual)", quantity: 1, price: "299.00" },
+      { name: "Extra Storage (100GB)", quantity: 2, price: "49.00" },
+    ],
+    total: 397.0,
+  },
+  options: {
+    format: "A4",
+    margin: "20mm",
+  },
+});
+```
+
+The Handlebars syntax keeps your templates readable. `{{#each items}}` iterates over the array, and `{{#if condition}}` lets you conditionally show sections like a discount line or tax breakdown.
+
+Templates also support versioning. Every time you update a template through the API or dashboard, DocuForge saves the previous version. You can list versions, view any historical snapshot, and restore if something goes wrong. This is critical for compliance-heavy documents where you need to prove what a template looked like on a specific date.
+
+## Step 5: Add Headers, Footers, and Page Numbers
+
+Multi-page documents like contracts and reports need consistent headers and footers. DocuForge supports HTML-based headers and footers with two special interpolation variables: `{{pageNumber}}` and `{{totalPages}}`.
+
+```typescript
+const result = await df.generate({
+  html: longReportHtml,
+  options: {
+    format: "A4",
+    margin: { top: "35mm", right: "15mm", bottom: "25mm", left: "15mm" },
+    printBackground: true,
+    header: `
+      <div style="font-size: 10px; color: #888; width: 100%; padding: 0 15mm;
+                  display: flex; justify-content: space-between;">
+        <span>Acme Corp - Confidential</span>
+        <span>Q1 2026 Report</span>
+      </div>
+    `,
+    footer: `
+      <div style="font-size: 10px; color: #888; width: 100%; text-align: center;
+                  padding: 0 15mm;">
+        Page {{pageNumber}} of {{totalPages}}
+      </div>
+    `,
+  },
+});
+```
+
+A few things to keep in mind with headers and footers. The top margin must be large enough to accommodate the header height, and the bottom margin must fit the footer. If your margin is too small, the header or footer will overlap with the document body. A top margin of 30-35mm works well for a single-line header.
+
+Headers and footers are rendered independently from the main document body. They have their own rendering context, so styles defined in your main HTML do not cascade into them. Inline styles are the most reliable approach here.
+
+The `{{pageNumber}}` and `{{totalPages}}` placeholders are replaced at render time by the PDF engine. They work in both headers and footers, and you can use them multiple times.
+
+## Step 6: Server Actions Alternative
+
+If you prefer to skip the API route entirely, Next.js Server Actions offer a more streamlined approach. Server Actions run on the server and can be called directly from client components without an explicit fetch.
+
+Create a Server Action file:
+
+```typescript
+// app/actions/generate-pdf.ts
+"use server";
+
+import DocuForge from "docuforge";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+interface GeneratePdfInput {
+  html?: string;
+  templateId?: string;
+  data?: Record<string, unknown>;
+}
+
+export async function generatePdf(input: GeneratePdfInput) {
+  try {
+    let result;
+
+    if (input.templateId && input.data) {
+      result = await df.fromTemplate({
+        template: input.templateId,
+        data: input.data,
+        options: {
+          format: "A4",
+          margin: "20mm",
+          printBackground: true,
+        },
+      });
+    } else if (input.html) {
+      result = await df.generate({
+        html: input.html,
+        options: {
+          format: "A4",
+          margin: "20mm",
+          printBackground: true,
+        },
+      });
+    } else {
+      throw new Error("Provide either html or templateId with data");
+    }
+
+    return { success: true, url: result.url, id: result.id };
+  } catch (error) {
+    console.error("PDF generation failed:", error);
+    return { success: false, error: "Failed to generate PDF" };
+  }
+}
+```
+
+Then call it from any client component:
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { generatePdf } from "@/app/actions/generate-pdf";
+
+export function InvoiceGenerator() {
+  const [loading, setLoading] = useState(false);
+
+  async function handleGenerate() {
+    setLoading(true);
+
+    const result = await generatePdf({
+      templateId: "tmpl_abc123",
+      data: {
+        companyName: "Acme Corp",
+        invoiceNumber: "INV-2026-0042",
+        customerName: "Jane Smith",
+        date: "March 10, 2026",
+        items: [
+          { name: "Pro Plan", quantity: 1, price: "299.00" },
+        ],
+        total: 299.0,
+      },
+    });
+
+    if (result.success && result.url) {
+      window.open(result.url, "_blank");
+    }
+
+    setLoading(false);
+  }
+
+  return (
+    <button onClick={handleGenerate} disabled={loading}>
+      {loading ? "Generating..." : "Generate Invoice"}
+    </button>
+  );
+}
+```
+
+The Server Action approach has a few advantages. There is no need to define or maintain a separate API route. Type safety flows directly from the action to the component. And Next.js handles the serialization and network call under the hood.
+
+The tradeoff is that Server Actions are tightly coupled to your Next.js app. If you also need to generate PDFs from a mobile app or an external service, an API route gives you a reusable endpoint. Choose based on your use case.
+
+## Going Further
+
+You now have a solid foundation for PDF generation in Next.js. From here, there are several directions to explore depending on your use case:
+
+- **[Automate Stripe invoices](/blog/automate-stripe-invoices-pdf)** -- Generate and email PDF invoices on every successful payment using Stripe webhooks.
+- **[Export React components to PDF](/blog/react-component-to-pdf-export)** -- Use `df.fromReact()` to render your existing React components directly to PDF without maintaining separate HTML templates.
+- **[DocuForge vs Puppeteer](/blog/docuforge-vs-puppeteer-pdf-generation)** -- Understand the tradeoffs between a managed API and self-hosted browser automation.
+- **[Generate PDFs in Express](/blog/generate-pdfs-express-docuforge)** -- If your backend is not Next.js, the same SDK works in any Node.js environment.
+
+Check out the [full API reference](/docs/api-reference) for advanced features like batch generation, webhook callbacks, and PDF tools including merge, split, and password protection.

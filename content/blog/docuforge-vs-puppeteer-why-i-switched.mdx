@@ -1,0 +1,323 @@
+---
+title: "DocuForge vs Puppeteer: Why I Switched"
+description: "A developer's honest comparison of self-hosted Puppeteer PDF generation versus the DocuForge API. Infrastructure, code complexity, cost, and performance compared."
+slug: "docuforge-vs-puppeteer-why-i-switched"
+date: "2026-03-24"
+author: "DocuForge Team"
+authorRole: "Developer Advocate"
+tags: ["comparison", "pdf-generation", "typescript"]
+readingTime: "10 min read"
+---
+
+# DocuForge vs Puppeteer: Why I Switched
+
+I spent three days getting Puppeteer to reliably generate invoices in production. Three days of debugging Chromium crashes inside Docker, wrestling with memory limits, and writing retry logic that should not have been my responsibility. Then I found DocuForge and replaced the entire setup in about ten minutes.
+
+This is not a theoretical comparison post. I am going to walk through the exact Puppeteer code I was running, the problems I hit, and how the same workflow looks with DocuForge. I will be honest about when Puppeteer still makes sense. But for my use case -- a SaaS that generates invoices, receipts, and shipping labels at moderate scale -- the switch was one of the best infrastructure decisions I made last year.
+
+If you are currently running Puppeteer or Playwright in production for PDF generation, or if you are about to set it up for the first time, this post will save you time. You will see the real tradeoffs, not a marketing page.
+
+Let me start with what I was running before.
+
+## The Puppeteer Setup I Was Running
+
+My application is a Node.js API that generates invoices after successful payments. Customers expect a PDF link in their email within a few seconds of checkout. Here is a simplified version of what the Puppeteer code looked like:
+
+```typescript
+import puppeteer from "puppeteer";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+const s3 = new S3Client({ region: "us-east-1" });
+
+async function generateInvoicePDF(html: string, invoiceId: string) {
+  const browser = await puppeteer.launch({
+    headless: "new",
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+    ],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+      displayHeaderFooter: true,
+      headerTemplate: `<div style="font-size:10px; width:100%; text-align:center;">Invoice ${invoiceId}</div>`,
+      footerTemplate: `<div style="font-size:10px; width:100%; text-align:center;">
+        Page <span class="pageNumber"></span> of <span class="totalPages"></span>
+      </div>`,
+    });
+
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: "my-invoices",
+        Key: `invoices/${invoiceId}.pdf`,
+        Body: pdfBuffer,
+        ContentType: "application/pdf",
+      })
+    );
+
+    return `https://my-invoices.s3.amazonaws.com/invoices/${invoiceId}.pdf`;
+  } finally {
+    await browser.close();
+  }
+}
+```
+
+That is roughly 40 lines just to generate one PDF and upload it. But the code was only half the problem. The Dockerfile was where things got ugly:
+
+```dockerfile
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+WORKDIR /app
+COPY . .
+RUN npm ci --production
+CMD ["node", "server.js"]
+```
+
+This Dockerfile alone added about 400MB to the image. Every CI build took noticeably longer. Every deploy pushed a larger image. And every time Chromium updated, something broke.
+
+The code worked on my machine. Getting it to work reliably in production was a different story.
+
+## Problem 1: Memory Leaks and Crashes
+
+The first serious issue was memory. Every call to `puppeteer.launch()` spins up a full Chromium process. On a 512MB container, that means you can handle maybe two or three concurrent requests before the OOM killer steps in.
+
+I started seeing this in production within the first week. A burst of five invoice requests would arrive at once -- a common pattern after a batch of orders -- and the container would restart. Customers got 502 errors. The invoices never generated. Support tickets followed.
+
+The obvious fix is to keep a browser instance alive and reuse it. So I built a simple browser pool:
+
+```typescript
+let browser: Browser | null = null;
+let useCount = 0;
+
+async function getBrowser() {
+  if (!browser || useCount >= 50) {
+    if (browser) await browser.close();
+    browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+    useCount = 0;
+  }
+  useCount++;
+  return browser;
+}
+```
+
+This helped, but it introduced new problems. If the browser crashed mid-render, the pool returned a dead instance. I had to add health checks, crash detection, and automatic recovery. What started as 40 lines of PDF code was now 200 lines of browser lifecycle management.
+
+DocuForge handles all of this internally. Its browser pool keeps 2-3 Chromium instances alive, assigns requests via round-robin, and recycles each instance after 100 uses. I did not know that when I switched -- I just knew my PDFs stopped failing. Later, reading their architecture docs, I understood why. The pool management that took me a week to get right was a solved problem from day one.
+
+## Problem 2: Headers, Footers, and Page Breaks
+
+Puppeteer's `displayHeaderFooter` option sounds great until you actually use it. The header and footer templates run in a completely separate rendering context from the main page content. That means:
+
+- You cannot use your page's CSS. The headers and footers have their own isolated styles.
+- Font loading is unreliable. Custom fonts that render perfectly in the body often fail in headers and footers.
+- The positioning is tricky. You need to manually adjust margins to prevent the header from overlapping the body content, and the relationship between `margin` in the PDF options and the actual header/footer height is not intuitive.
+
+CSS page breaks were another frustration. I had multi-page invoices where a line item table needed to break cleanly across pages. In theory, `break-inside: avoid` on table rows should handle this. In practice, Chromium's print rendering engine has its own opinions. I spent an afternoon experimenting with combinations of `page-break-before`, `page-break-after`, `break-inside`, and wrapper divs before finding a combination that worked consistently.
+
+DocuForge still uses Chromium under the hood, so the rendering engine is the same. But their header and footer handling is cleaner. You pass `header` and `footer` as HTML strings in the options, and they support `{{pageNumber}}` and `{{totalPages}}` as interpolation variables:
+
+```typescript
+const pdf = await df.generate({
+  html: invoiceHtml,
+  options: {
+    format: "A4",
+    header: `<div style="font-size:10px; text-align:center; width:100%;">Invoice #1234</div>`,
+    footer: `<div style="font-size:10px; text-align:center; width:100%;">
+      Page {{pageNumber}} of {{totalPages}}
+    </div>`,
+  },
+});
+```
+
+The `{{pageNumber}}` and `{{totalPages}}` variables are interpolated before rendering, which means they work reliably regardless of how Chromium decides to handle the print context. It is a small detail that saves real debugging time.
+
+## Problem 3: Multi-Language SDKs
+
+Six months into production, our Python team needed to generate PDF reports from a Django analytics service. The invoicing logic lived in our Node.js API, but the analytics reports were a completely separate codebase in Python.
+
+We had two options. First, duplicate the entire Puppeteer setup in Python using Pyppeteer or Playwright for Python. That meant another Dockerfile with Chromium, another browser pool, another set of memory issues to debug. Second, build an internal PDF generation microservice that both the Node.js and Python codebases could call over HTTP.
+
+We went with option two, and it worked, but we were now maintaining a standalone service just to wrap Puppeteer behind an HTTP API. We had accidentally built a worse version of what DocuForge already provides.
+
+With DocuForge, the Python team just installed the SDK:
+
+```bash
+pip install docuforge
+```
+
+```python
+from docuforge import DocuForge
+
+df = DocuForge("df_live_your_api_key_here")
+result = df.generate(html=report_html, options={"format": "A4"})
+print(result.url)
+```
+
+Same API, same response shape, no infrastructure. They also have SDKs for Go and Ruby, which means any future service we build can generate PDFs without standing up its own Chromium instance.
+
+## The Switch: DocuForge in 10 Minutes
+
+Let me show you the before and after. Here is the Puppeteer version again, condensed to its core:
+
+```typescript
+// Puppeteer: ~40 lines, plus Dockerfile, plus browser pool, plus S3 upload
+import puppeteer from "puppeteer";
+
+const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+const page = await browser.newPage();
+await page.setContent(invoiceHtml, { waitUntil: "networkidle0" });
+const pdfBuffer = await page.pdf({
+  format: "A4",
+  printBackground: true,
+  margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+});
+await browser.close();
+
+// Then manually upload to S3...
+// Then manage the browser pool...
+// Then handle crashes, retries, cleanup...
+```
+
+Here is the DocuForge version:
+
+```typescript
+// DocuForge: 6 lines, no infrastructure
+import DocuForge from "docuforge";
+
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+const pdf = await df.generate({
+  html: invoiceHtml,
+  options: {
+    format: "A4",
+    printBackground: true,
+    margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+  },
+});
+
+console.log(pdf.url); // hosted URL, ready to use
+```
+
+The response object gives you everything you need: `id`, `status`, `url`, `pages`, `file_size`, and `generation_time_ms`. The PDF is stored automatically -- DocuForge supports local storage, Cloudflare R2, AWS S3, and Google Cloud Storage -- so there is no manual upload step.
+
+For templated documents, the difference is even starker. Instead of building HTML strings with string interpolation (or setting up a template engine yourself), DocuForge has built-in Handlebars support:
+
+```typescript
+const pdf = await df.fromTemplate({
+  template: "tmpl_invoice_standard",
+  data: {
+    customerName: "Acme Corp",
+    items: [
+      { name: "Widget Pro", quantity: 3, price: 29.99 },
+      { name: "Gadget Plus", quantity: 1, price: 49.99 },
+    ],
+    total: 139.96,
+  },
+  options: { format: "A4" },
+});
+```
+
+Templates support `{{variable}}`, `{{#each items}}`, `{{#if condition}}`, and the full Handlebars syntax. They are stored server-side with version history, so you can update an invoice layout without redeploying your application.
+
+The migration took about ten minutes. I removed the Puppeteer dependency, deleted the browser pool code, deleted the S3 upload logic, removed Chromium from the Dockerfile, and installed the `docuforge` npm package. The Docker image dropped from 800MB to 200MB.
+
+## Feature Comparison Table
+
+Here is a side-by-side comparison of what you get with each approach:
+
+| Feature | Puppeteer (Self-Hosted) | DocuForge |
+|---|---|---|
+| **Setup time** | Hours to days (Docker, Chromium, pool) | 5 minutes (npm install + API key) |
+| **Infrastructure** | Your servers, your Chromium, your problem | Managed service, nothing to host |
+| **Browser management** | Manual pool, crash recovery, recycling | Automatic pool (2-3 instances, round-robin, 100-use recycling) |
+| **SDKs** | JavaScript/TypeScript only | TypeScript, Python, Go, Ruby |
+| **Template engine** | BYO (Handlebars, EJS, etc.) | Built-in Handlebars with version history |
+| **Batch generation** | Manual queue implementation | Built-in BullMQ queue with retries |
+| **PDF storage** | Manual S3/R2/GCS upload | Built-in (local, R2, S3, GCS) |
+| **Headers/footers** | Limited, isolated rendering context | HTML with `{{pageNumber}}` / `{{totalPages}}` |
+| **React-to-PDF** | Not supported natively | `fromReact()` with JSX/TSX transpilation |
+| **Rate limiting** | Manual implementation | Built-in, plan-based |
+| **Usage tracking** | Manual logging | Built-in dashboard with daily/monthly stats |
+| **Cost model** | Server costs + engineering time | API pricing based on usage |
+| **Docker image size** | +400MB for Chromium | No Chromium needed in your image |
+
+The features that saved me the most time were the built-in storage and the browser pool. Those two things alone represented about 300 lines of code I no longer needed to maintain.
+
+## Performance Comparison
+
+I ran both setups against the same invoice HTML to get a rough comparison. These numbers are from a real workload, not a synthetic benchmark, so take them as directional rather than definitive.
+
+**Puppeteer (self-hosted, 1GB container):**
+- Cold start (first PDF after deploy): 3-5 seconds
+- Warm (browser already running): 1-3 seconds
+- Concurrent requests: 2-3 before degradation on a 1GB container
+- Memory: scales linearly with concurrency; each page adds ~50-80MB
+
+**DocuForge API:**
+- Consistent generation time: 1-2 seconds
+- No cold start penalty (pool is always warm)
+- Concurrent requests: handled by the service; rate limits depend on plan (10-500 req/s)
+- Memory: zero on your infrastructure
+
+The consistency was what mattered most to me. With Puppeteer, the p50 latency was fine, but the p99 was unpredictable. A garbage collection pause or a page with heavy CSS could push a single render to 5+ seconds. With DocuForge, the generation times clustered tightly around 1-2 seconds because their pool is purpose-built for this workload.
+
+For batch generation, the difference was even more pronounced. Generating 50 invoices with Puppeteer meant either sequential processing (slow) or a concurrency limit of 2-3 (still slow, and risky). DocuForge's batch endpoint accepts the full set and processes them through a BullMQ queue with concurrency of 5, retries, and exponential backoff. I just fire the request and poll for completion.
+
+## When Puppeteer Still Makes Sense
+
+I want to be honest here. Puppeteer is not a bad tool. It is a bad tool for PDF-only workloads in production. There are legitimate reasons to keep it:
+
+**Full browser automation.** If you need screenshots, scraping, end-to-end testing, or any interaction beyond "render HTML to PDF," Puppeteer is the right choice. DocuForge is a PDF API, not a general-purpose browser automation tool.
+
+**Strict data residency requirements.** If your compliance rules require that document data never leaves your infrastructure, a self-hosted solution is necessary. DocuForge does offer a self-hosted Docker deployment, but you should evaluate whether that meets your specific compliance needs.
+
+**You are already operating at massive scale.** If you have already invested in a robust browser pool with health checks, auto-scaling, and monitoring, and it is working well, the migration cost may not be worth it. The argument for DocuForge is strongest when you are setting up PDF generation for the first time or when your current setup is causing pain.
+
+**Cost sensitivity at very high volume.** If you are generating hundreds of thousands of PDFs per month, the math changes. At that scale, a dedicated Puppeteer cluster on cheap compute might cost less than API pricing. Run the numbers for your specific volume.
+
+For everyone else -- and that includes most teams generating PDFs in production -- the engineering time saved by not managing Chromium infrastructure is worth far more than the API cost.
+
+## Conclusion
+
+Switching from Puppeteer to DocuForge was not a dramatic, everything-changed moment. It was more like removing a constant low-grade headache. I stopped worrying about browser crashes. I stopped debugging Docker memory limits. I stopped maintaining a browser pool. I just called an API and got a PDF back.
+
+If you are starting a new project that needs PDF generation, I would recommend trying DocuForge first. You can always fall back to Puppeteer if you hit a limitation, but chances are you will not need to.
+
+To get started, check out these tutorials:
+
+- [How to Generate PDFs in Next.js with DocuForge](/blog/generate-pdfs-nextjs-docuforge)
+- [Express.js PDF Generation Guide](/docs/frameworks/express)
+- [Python SDK with FastAPI](/docs/frameworks/fastapi)
+- [DocuForge API Reference](/docs/api-reference)
+
+You can grab an API key from the [dashboard](/dashboard) and generate your first PDF in under five minutes.

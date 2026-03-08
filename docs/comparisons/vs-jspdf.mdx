@@ -1,0 +1,102 @@
+---
+title: "DocuForge vs jsPDF"
+description: "Compare DocuForge's server-side API against client-side jsPDF"
+---
+
+# DocuForge vs jsPDF
+
+jsPDF is a client-side JavaScript library that generates PDFs in the browser. DocuForge is a server-side API that renders PDFs using headless Chromium for pixel-perfect output.
+
+## Feature Comparison
+
+| Feature | DocuForge | jsPDF |
+|---------|-----------|-------|
+| **Runs on** | Server (API) | Client (browser) |
+| **HTML/CSS support** | Full CSS3 | Very limited (html2canvas) |
+| **Flexbox / Grid** | Full support | Not supported |
+| **Custom fonts** | Upload via API | Manual embedding (complex) |
+| **Output quality** | Pixel-perfect (Chromium) | Approximate (canvas-based) |
+| **File size** | 0KB client bundle | ~300KB+ (with plugins) |
+| **Tables** | Full HTML tables | Manual coordinate positioning |
+| **Images** | URL or base64 | Base64 only |
+| **Multi-page** | Automatic page breaks | Manual page management |
+| **React support** | Native | Not supported |
+| **Templates** | Visual editor + API | Not supported |
+| **Batch generation** | Yes (server-side) | Not practical |
+| **Cost** | Free tier, from $29/mo | Free (MIT license) |
+
+## Key Differences
+
+**jsPDF** generates PDFs entirely in the browser by drawing to a canvas. This means:
+- No CSS layout engine — you position elements by x/y coordinates
+- Limited text wrapping and table support
+- `html2canvas` plugin is needed for HTML, but output is approximate
+- Large documents can freeze the browser
+
+**DocuForge** renders PDFs server-side using Chromium, giving you:
+- Full CSS3 support (the same rendering as Chrome)
+- Automatic page breaks, headers, footers
+- Zero client-side bundle size impact
+
+## Code Comparison
+
+### jsPDF
+
+```javascript
+import jsPDF from 'jspdf';
+
+const doc = new jsPDF();
+
+// Manual positioning — no CSS support
+doc.setFontSize(22);
+doc.text('Invoice #1234', 20, 30);
+doc.setFontSize(12);
+doc.text('Amount: $500.00', 20, 45);
+doc.text('Date: March 1, 2026', 20, 55);
+
+// Tables require a plugin
+doc.autoTable({
+  head: [['Item', 'Qty', 'Price']],
+  body: [
+    ['Consulting', '10', '$1,500'],
+    ['Development', '20', '$4,000'],
+  ],
+  startY: 70,
+});
+
+doc.save('invoice.pdf');
+```
+
+### DocuForge
+
+```typescript
+import { DocuForge } from 'docuforge';
+const df = new DocuForge('df_live_...');
+
+const pdf = await df.generate({
+  html: `
+    <h1>Invoice #1234</h1>
+    <p>Amount: $500.00</p>
+    <p>Date: March 1, 2026</p>
+    <table>
+      <tr><th>Item</th><th>Qty</th><th>Price</th></tr>
+      <tr><td>Consulting</td><td>10</td><td>$1,500</td></tr>
+      <tr><td>Development</td><td>20</td><td>$4,000</td></tr>
+    </table>
+  `,
+  options: { format: 'A4' },
+});
+```
+
+## When to Choose jsPDF
+
+- You need client-side PDF generation (offline, no API calls)
+- You're generating simple documents with manual layouts
+- You can't send data to a third-party server
+
+## When to Choose DocuForge
+
+- You need pixel-perfect PDFs with proper CSS layout
+- You're building production invoices, reports, or certificates
+- You want to keep your client bundle small (zero KB)
+- You need batch generation or template support

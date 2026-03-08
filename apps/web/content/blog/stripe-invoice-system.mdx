@@ -1,0 +1,88 @@
+---
+title: "Build an Invoice System with Stripe + DocuForge"
+description: "Create a complete invoice generation system that listens to Stripe webhooks and automatically generates pixel-perfect PDF invoices."
+date: "2026-03-02"
+author: "DocuForge Team"
+category: "Integration"
+readingTime: 8
+---
+
+Every SaaS needs invoices. Stripe handles payments, but generating beautiful PDF invoices from payment data? That's where DocuForge comes in.
+
+## What We're Building
+
+A system that automatically generates a PDF invoice every time a Stripe payment succeeds. The flow:
+
+1. Customer pays via Stripe Checkout
+2. Stripe fires a `payment_intent.succeeded` webhook
+3. Your server catches the webhook
+4. DocuForge generates a branded PDF invoice
+5. The PDF URL is stored and emailed to the customer
+
+## Setup
+
+```bash
+npm install docuforge stripe
+```
+
+## The Webhook Handler
+
+```typescript
+import DocuForge from 'docuforge';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const docuforge = new DocuForge(process.env.DOCUFORGE_API_KEY!);
+
+export async function POST(request: Request) {
+  const body = await request.text();
+  const sig = request.headers.get('stripe-signature')!;
+
+  const event = stripe.webhooks.constructEvent(
+    body, sig, process.env.STRIPE_WEBHOOK_SECRET!
+  );
+
+  if (event.type === 'payment_intent.succeeded') {
+    const payment = event.data.object;
+
+    const pdf = await docuforge.generate({
+      html: buildInvoiceHtml(payment),
+      options: { format: 'A4', margin: '20mm' },
+    });
+
+    // Store the PDF URL with the payment record
+    console.log('Invoice generated:', pdf.url);
+  }
+
+  return new Response('OK');
+}
+```
+
+## The Invoice Template
+
+Design your invoice once as HTML and reuse it for every payment. DocuForge renders it with pixel-perfect fidelity including your brand colors, logo, and typography.
+
+## Using Stored Templates
+
+For production, store your invoice template in DocuForge and pass data dynamically:
+
+```typescript
+const pdf = await docuforge.fromTemplate({
+  templateId: 'tmpl_stripe_invoice',
+  data: {
+    invoiceNumber: `INV-${payment.id.slice(-8)}`,
+    customerEmail: payment.receipt_email,
+    amount: (payment.amount / 100).toFixed(2),
+    currency: payment.currency.toUpperCase(),
+    date: new Date().toISOString().split('T')[0],
+  },
+});
+```
+
+This approach separates your invoice design from your business logic, making it easy to update the template without redeploying code.
+
+## Next Steps
+
+- Add email delivery with [Resend](https://resend.com) or SendGrid
+- Set up [batch generation](https://docs.docuforge.dev/api-reference/generate) for monthly invoice runs
+- Build a customer-facing invoice history page in your dashboard

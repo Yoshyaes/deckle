@@ -1,0 +1,16 @@
+FROM node:20-slim
+
+RUN corepack enable && corepack prepare pnpm@10 --activate
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/api/package.json apps/api/
+COPY packages/sdk-typescript/package.json packages/sdk-typescript/
+
+RUN pnpm install --frozen-lockfile
+
+COPY apps/api/ apps/api/
+COPY packages/sdk-typescript/ packages/sdk-typescript/
+
+CMD ["pnpm", "--filter", "@docuforge/api", "db:migrate"]
