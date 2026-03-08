@@ -12,91 +12,62 @@
 
 #### Step 1: Set up Neon (PostgreSQL)
 
-- [ ] Go to https://neon.tech and create a free account
-- [ ] Create a new project named `docuforge`
-- [ ] Copy the connection string — it looks like `postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/docuforge?sslmode=require`
-- [ ] Save this as your `DATABASE_URL`
+- [X] Go to https://neon.tech and create a free account
+- [X] Create a new project named `docuforge`
+- [X] Copy the connection string
+- [X] Save as `DATABASE_URL`
 
 #### Step 2: Set up Upstash (Redis)
 
-- [ ] Go to https://console.upstash.com and create a free account
-- [ ] Create a new Redis database, region closest to your API (e.g., US East)
-- [ ] Go to the database details page and copy the Redis URL (TLS endpoint)
-- [ ] It looks like `rediss://default:xxx@us1-xxx.upstash.io:6379`
-- [ ] Save this as your `REDIS_URL`
+- [X] Go to https://console.upstash.com and create a free account
+- [X] Create a new Redis database (US East)
+- [X] Copy the Redis URL (use `redis://` scheme, NOT the `redis-cli` command)
+- [X] Save as `REDIS_URL`
 
 #### Step 3: Set up Cloudflare R2 (PDF storage)
 
-- [ ] Go to https://dash.cloudflare.com → R2 Object Storage
-- [ ] Create a bucket named `docuforge-pdfs`
-- [ ] Go to R2 → Overview → Manage R2 API Tokens → Create API Token
-- [ ] Give it Object Read & Write permissions for the `docuforge-pdfs` bucket
-- [ ] Copy the Access Key ID and Secret Access Key
-- [ ] Note your Cloudflare Account ID from the dashboard URL or overview page
-- [ ] (Optional) Set up a custom domain for the bucket under Settings → Public Access → Custom Domains (e.g., `cdn.docuforge.dev`)
-- [ ] Save these values:
-  - `R2_ACCOUNT_ID` — your Cloudflare account ID
-  - `R2_ACCESS_KEY_ID` — from the API token
-  - `R2_SECRET_ACCESS_KEY` — from the API token
-  - `R2_BUCKET_NAME` — `docuforge-pdfs`
-  - `R2_PUBLIC_URL` — your custom domain or the R2 public URL
-  - `STORAGE_PROVIDER` — set to `r2`
+- [X] Go to https://dash.cloudflare.com → R2 Object Storage
+- [X] Create a bucket named `docuforge-pdfs`
+- [X] Go to R2 → Overview → Account Details → API Tokens → Manage → Create Account API Token
+- [X] Give it Object Read & Write permissions for the `docuforge-pdfs` bucket
+- [X] Copy the Access Key ID and Secret Access Key
+- [X] Note Cloudflare Account ID from the R2 overview page
 
 #### Step 4: Deploy API to Render
 
-- [ ] Go to https://render.com and create an account
-- [ ] New → Web Service → Connect your GitHub repo
-- [ ] Configure the service:
-  - **Name:** `docuforge-api`
-  - **Environment:** Docker
-  - **Dockerfile Path:** `./Dockerfile` (root of repo)
-  - **Plan:** Starter ($7/month) — you need at least 2GB RAM for Playwright
-  - **Region:** US East (or closest to your Neon/Upstash regions)
-- [ ] Add environment variables (under Environment → Environment Variables):
-  ```
-  DATABASE_URL=<your Neon connection string>
-  REDIS_URL=<your Upstash Redis URL>
-  STORAGE_PROVIDER=r2
-  R2_ACCOUNT_ID=<your Cloudflare account ID>
-  R2_ACCESS_KEY_ID=<your R2 access key>
-  R2_SECRET_ACCESS_KEY=<your R2 secret key>
-  R2_BUCKET_NAME=docuforge-pdfs
-  R2_PUBLIC_URL=<your R2 public URL or custom domain>
-  PORT=3000
-  NODE_ENV=production
-  API_BASE_URL=https://api.docuforge.dev
-  DASHBOARD_URL=https://app.docuforge.dev
-  ```
-- [ ] Click Create Web Service and wait for the build to finish (~5-10 min)
-- [ ] Once deployed, run migrations: go to your service → Shell tab → run `pnpm --filter @docuforge/api db:push`
-  - Alternatively, use the `Dockerfile.migrate` approach from `docker-compose.selfhost.yml`
+- [X] Go to https://render.com and create an account
+- [X] New → Web Service → Connect GitHub repo (`Yoshyaes/docuforge`)
+- [X] Configure: Name `docuforge-api`, Docker, Starter plan ($7/mo, 2GB RAM)
+- [X] Add environment variables (DATABASE_URL, REDIS_URL, R2 credentials, PORT, NODE_ENV)
+- [X] Build + deploy successful
+- [ ] Run migrations: Render Shell tab → `pnpm --filter @docuforge/api db:push`
 
-#### Step 5: Point DNS at Render
+#### Step 5: Point DNS at Render (requires `docuforge.dev` domain)
 
 - [ ] Go to Cloudflare DNS for `docuforge.dev`
-- [ ] Add a CNAME record:
-  - **Name:** `api`
-  - **Target:** your Render service URL (e.g., `docuforge-api-xxxx.onrender.com`)
-  - **Proxy status:** DNS only (gray cloud) — Render handles TLS
-- [ ] In Render, go to your service → Settings → Custom Domains → Add `api.docuforge.dev`
-- [ ] Wait for TLS certificate to provision (usually < 5 min)
+- [ ] Add a CNAME record: **Name:** `api`, **Target:** your Render URL (e.g., `docuforge-api-xxxx.onrender.com`), **Proxy:** DNS only (gray cloud)
+- [ ] In Render → Settings → Custom Domains → Add `api.docuforge.dev`
+- [ ] Wait for TLS certificate (~5 min)
 
-#### Step 6: Verify API is live
+#### Step 6: Run database migrations
 
-- [ ] Test the health endpoint:
-  ```bash
-  curl https://api.docuforge.dev/health
-  ```
-- [ ] Test PDF generation (you'll need an API key — create one via the dashboard or directly in the DB):
+- [ ] In Render → Shell tab, run: `pnpm --filter @docuforge/api db:push`
+- [ ] Verify tables created successfully
+
+#### Step 7: Verify API is live
+
+- [ ] Test health endpoint: `curl https://api.docuforge.dev/health` (or your Render URL directly)
+- [ ] Create an API key (via dashboard or directly in DB)
+- [ ] Test PDF generation:
   ```bash
   curl -X POST https://api.docuforge.dev/v1/generate \
     -H "Authorization: Bearer df_live_your_key_here" \
     -H "Content-Type: application/json" \
     -d '{"html": "<h1>Hello from DocuForge</h1>"}'
   ```
-- [ ] Verify the response includes a `url` pointing to your R2 storage and the PDF is accessible
+- [ ] Verify PDF URL loads from R2
 
-#### Step 7: Deploy dashboard to Vercel
+#### Step 8: Deploy dashboard to Vercel
 
 - [ ] Go to https://vercel.com and import your GitHub repo
 - [ ] Configure:
@@ -117,7 +88,19 @@
   - **Target:** `cname.vercel-dns.com`
   - **Proxy status:** DNS only (gray cloud)
 
-#### Step 8: Deploy docs
+#### Step 9: Deploy landing page (`apps/web`) to Vercel
+
+- [ ] Import `Yoshyaes/docuforge` repo to Vercel as a **separate project**
+- [ ] Configure:
+  - **Framework Preset:** Next.js
+  - **Root Directory:** `apps/web`
+  - **Build Command:** `pnpm --filter @docuforge/web build`
+  - **Install Command:** `pnpm install`
+- [ ] Deploy
+- [ ] Go to Settings → Domains → Add `docuforge.dev`
+- [ ] In Cloudflare DNS, add CNAME: **Name:** `@`, **Target:** `cname.vercel-dns.com`, **Proxy:** DNS only
+
+#### Step 10: Deploy docs
 
 - [ ] Option A — Mintlify (recommended):
   - Go to https://mintlify.com and create a free account
@@ -128,14 +111,14 @@
   - Import repo to Vercel, set root to `docs/`
   - Add domain `docs.docuforge.dev`
 
-#### Step 9: Verify llms.txt
+#### Step 11: Verify llms.txt
 
 - [ ] Confirm `https://docuforge.dev/llms.txt` is accessible
   - This requires your root domain to serve the `public/` directory
   - If using Vercel for the main site, the files in `public/` are served automatically
   - If not, upload `llms.txt` and `llms-full.txt` to your hosting provider's static file directory
 
-#### Step 10: End-to-end verification
+#### Step 12: End-to-end verification
 
 - [ ] Complete flow test: sign up on `app.docuforge.dev` → create API key → generate a PDF via `api.docuforge.dev/v1/generate` → verify PDF URL loads from R2 → see it in the dashboard generations list
 
@@ -145,10 +128,11 @@ This is the single most important thing you do this week. It starts generating A
 
 - [x] Extract React PDF components into standalone package: `@docuforge/react-pdf` *(already exists at `packages/react/` with 9 components, tsup build, dual ESM/CJS)*
 - [ ] Publish to npm *(manual: run `cd packages/react && npm run build && npm publish --access public`)*
-- [x] Create GitHub repo with polished README (logo, badges, install command, 3 code examples, GIF/screenshot of rendered PDF) *(452-line README exists at `packages/react/README.md`)*
+- [x] Create GitHub repo with polished README *(repo live at `github.com/Yoshyaes/docuforge`)*
 - [x] Add MIT license *(root `LICENSE` + `packages/react/LICENSE` both in place)*
 - [x] Write a solid `CONTRIBUTING.md` *(created at repo root)*
-- [x] Create 3-5 GitHub Issues labeled "good first issue" to attract contributors *(5 issues drafted in `.github/GOOD_FIRST_ISSUES.md` — create them on GitHub when repo is public)*
+- [x] Create 3-5 GitHub Issues labeled "good first issue" *(5 issues drafted in `.github/GOOD_FIRST_ISSUES.md`)*
+- [ ] Create the 5 issues on GitHub from `.github/GOOD_FIRST_ISSUES.md` *(manual — repo is now public)*
 - [ ] Get your first stars (share with friends, post in relevant Discords) *(manual)*
 
 **Why this matters:** This is the Resend playbook. React Email existed before Resend charged a dime. The open-source library is your top-of-funnel content machine. Every npm install and GitHub star becomes training data that makes AI models more likely to recommend DocuForge.
@@ -161,23 +145,23 @@ This is the single most important thing you do this week. It starts generating A
 
 ### The 10 Tutorials
 
-- [ ] "How to Generate PDFs in Next.js with DocuForge"
-- [ ] "Build an Invoice System with Stripe + DocuForge"
-- [ ] "PDF Generation in Python (FastAPI + DocuForge)"
-- [ ] "Generate Report PDFs from Supabase Data"
-- [ ] "DocuForge vs Puppeteer: Why I Switched"
-- [ ] "How to Add PDF Export to Any React App"
-- [ ] "Generate PDF Certificates for Your Online Course"
-- [ ] "Django PDF Generation Made Simple"
-- [ ] "The Developer's Guide to PDF Page Breaks, Headers, and Footers"
-- [ ] "Express.js PDF API: From HTML to PDF in 30 Seconds"
+- [X] "How to Generate PDFs in Next.js with DocuForge" *(written — `apps/web/content/blog/next-js-pdf-generation.mdx`)*
+- [X] "Build an Invoice System with Stripe + DocuForge" *(written — `stripe-invoice-system.mdx`)*
+- [X] "PDF Generation in Python (FastAPI + DocuForge)" *(written — `python-fastapi-pdf.mdx`)*
+- [X] "Generate Report PDFs from Supabase Data" *(written — `supabase-report-pdfs.mdx`)*
+- [X] "DocuForge vs Puppeteer: Why I Switched" *(written — `docuforge-vs-puppeteer.mdx`)*
+- [X] "How to Add PDF Export to Any React App" *(written — `react-pdf-export.mdx`)*
+- [X] "Generate PDF Certificates for Your Online Course" *(written — `pdf-certificates.mdx`)*
+- [X] "Django PDF Generation Made Simple" *(written — `django-pdf-generation.mdx`)*
+- [X] "The Developer's Guide to PDF Page Breaks, Headers, and Footers" *(written — `pdf-page-breaks-headers.mdx`)*
+- [X] "Express.js PDF API: From HTML to PDF in 30 Seconds" *(written — `express-html-to-pdf.mdx`)*
 
 ### Where to Publish
 
-- [ ] Primary: `docuforge.dev/blog` (same domain as product — critical for SEO and AI association)
+- [X] Primary: `docuforge.dev/blog` *(blog system built in `apps/web/` — will go live when landing page deploys to Vercel)*
 - [ ] Cross-post to Dev.to
 - [ ] Cross-post to Hashnode
-- [ ] Each tutorial should be a complete, working example that uses the DocuForge SDK
+- [X] Each tutorial is a complete, working example using the DocuForge SDK
 
 **Do NOT put these on the TAG blog.** TAG is for gaming content. DocuForge content lives on `docuforge.dev/blog`. Different audiences, different domains.
 
