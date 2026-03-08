@@ -39,24 +39,25 @@
 - [X] New → Web Service → Connect GitHub repo (`Yoshyaes/docuforge`)
 - [X] Configure: Name `docuforge-api`, Docker, Starter plan ($7/mo, 2GB RAM)
 - [X] Add environment variables (DATABASE_URL, REDIS_URL, R2 credentials, PORT, NODE_ENV)
-- [X] Build + deploy successful
-- [ ] Run migrations: Render Shell tab → `pnpm --filter @docuforge/api db:push`
+- [X] Build + deploy successful *(live at `docuforge-api-53lm.onrender.com`)*
+- [X] Run migrations: Render Shell tab → `pnpm --filter @docuforge/api db:push`
 
 #### Step 5: Point DNS at Render (requires `getdocuforge.dev` domain)
 
-- [ ] Go to Cloudflare DNS for `getdocuforge.dev`
-- [ ] Add a CNAME record: **Name:** `api`, **Target:** your Render URL (e.g., `docuforge-api-xxxx.onrender.com`), **Proxy:** DNS only (gray cloud)
+> **Note:** Domain `getdocuforge.dev` was purchased via Vercel. DNS is managed by Vercel, not Cloudflare. Add DNS records in Vercel → Domains → `getdocuforge.dev` → DNS Records.
+
+- [ ] In Vercel DNS for `getdocuforge.dev`, add a CNAME record: **Name:** `api`, **Target:** `docuforge-api-53lm.onrender.com`
 - [ ] In Render → Settings → Custom Domains → Add `api.getdocuforge.dev`
 - [ ] Wait for TLS certificate (~5 min)
 
 #### Step 6: Run database migrations
 
-- [ ] In Render → Shell tab, run: `pnpm --filter @docuforge/api db:push`
-- [ ] Verify tables created successfully
+- [X] In Render → Shell tab, run: `pnpm --filter @docuforge/api db:push`
+- [X] Verify tables created successfully
 
 #### Step 7: Verify API is live
 
-- [ ] Test health endpoint: `curl https://api.getdocuforge.dev/health` (or your Render URL directly)
+- [X] Test health endpoint: `curl https://docuforge-api-53lm.onrender.com/health` → `{"status":"ok"}`
 - [ ] Create an API key (via dashboard or directly in DB)
 - [ ] Test PDF generation:
   ```bash
@@ -69,7 +70,8 @@
 
 #### Step 8: Deploy dashboard to Vercel
 
-- [ ] Go to https://vercel.com and import your GitHub repo
+- [ ] Set up Clerk account at https://clerk.com and create an application
+- [ ] Go to https://vercel.com and import your GitHub repo as a **separate project**
 - [ ] Configure:
   - **Framework Preset:** Next.js
   - **Root Directory:** `apps/dashboard`
@@ -83,22 +85,15 @@
   ```
 - [ ] Deploy
 - [ ] Go to Settings → Domains → Add `app.getdocuforge.dev`
-- [ ] In Cloudflare DNS, add a CNAME record:
-  - **Name:** `app`
-  - **Target:** `cname.vercel-dns.com`
-  - **Proxy status:** DNS only (gray cloud)
+- [ ] In Vercel DNS for `getdocuforge.dev`, add a CNAME record: **Name:** `app`, **Target:** the Vercel deployment URL
 
 #### Step 9: Deploy landing page (`apps/web`) to Vercel
 
-- [ ] Import `Yoshyaes/docuforge` repo to Vercel as a **separate project**
-- [ ] Configure:
-  - **Framework Preset:** Next.js
-  - **Root Directory:** `apps/web`
-  - **Build Command:** `pnpm --filter @docuforge/web build`
-  - **Install Command:** `pnpm install`
-- [ ] Deploy
-- [ ] Go to Settings → Domains → Add `getdocuforge.dev`
-- [ ] In Cloudflare DNS, add CNAME: **Name:** `@`, **Target:** `cname.vercel-dns.com`, **Proxy:** DNS only
+- [X] Import `Yoshyaes/docuforge` repo to Vercel as a **separate project**
+- [X] Configure: Next.js, Root Directory `apps/web`, build `pnpm --filter @docuforge/web build`
+- [X] Deploy *(live on Vercel)*
+- [X] Domain `getdocuforge.dev` purchased via Vercel and assigned to this project
+- [X] Updated `next-mdx-remote` v5 → v6 (CVE-2026-0969 fix required by Vercel)
 
 #### Step 10: Deploy docs
 
@@ -106,7 +101,7 @@
   - Go to https://mintlify.com and create a free account
   - Connect your GitHub repo, set root to `docs/`
   - Add custom domain `docs.getdocuforge.dev` in Mintlify settings
-  - In Cloudflare DNS, add the CNAME record Mintlify provides
+  - In Vercel DNS, add the CNAME record Mintlify provides
 - [ ] Option B — Vercel:
   - Import repo to Vercel, set root to `docs/`
   - Add domain `docs.getdocuforge.dev`
@@ -325,6 +320,6 @@ Use Taz as your first enterprise customer. This gives you a real case study, for
 | Neon (PostgreSQL) | Free |
 | Upstash (Redis) | Free |
 | Cloudflare R2 (Storage) | Free |
-| Cloudflare (DNS/CDN) | Free |
+| Vercel (DNS) | Free |
 | `getdocuforge.dev` domain | ~$1/month ($12/year) |
 | **Total** | **~$8/month** |

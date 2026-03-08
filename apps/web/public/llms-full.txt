@@ -1,0 +1,245 @@
+# DocuForge — Full Documentation
+
+> PDF generation API for developers. HTML in, pixel-perfect PDF out.
+
+## Overview
+
+DocuForge is a hosted PDF generation API. Send HTML or template data, get pixel-perfect PDFs back in under 3 seconds. No headless browsers to manage.
+
+**Base URL:** `https://api.getdocuforge.dev`
+**Authentication:** Bearer token in Authorization header (`Authorization: Bearer df_live_...`)
+
+## SDKs
+
+### TypeScript
+```bash
+npm install docuforge
+```
+```typescript
+import { DocuForge } from 'docuforge';
+const df = new DocuForge(process.env.DOCUFORGE_API_KEY);
+```
+
+### Python
+```bash
+pip install docuforge
+```
+```python
+from docuforge import DocuForge
+df = DocuForge("df_live_...")
+```
+
+---
+
+## API Reference
+
+### POST /v1/generate
+
+Generate a PDF from HTML or a template.
+
+**Request Body:**
+```json
+{
+  "html": "<h1>Hello</h1>",
+  "options": {
+    "format": "A4",
+    "margin": "1in",
+    "orientation": "portrait",
+    "header": "<div>Company Name</div>",
+    "footer": "<div>Page {{pageNumber}} of {{totalPages}}</div>",
+    "printBackground": true
+  },
+  "output": "url"
+}
+```
+
+For template mode:
+```json
+{
+  "template": "tmpl_abc123",
+  "data": { "company": "Acme Corp", "total": 1500 },
+  "options": { "format": "A4" }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "gen_abc123",
+  "status": "completed",
+  "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf",
+  "pages": 2,
+  "file_size": 45230,
+  "generation_time_ms": 1840
+}
+```
+
+**Options:**
+- `format`: `"A4"` | `"Letter"` | `"Legal"` | `{ width: string, height: string }`
+- `margin`: `"1in"` | `{ top: "1in", right: "0.75in", bottom: "1in", left: "0.75in" }`
+- `orientation`: `"portrait"` | `"landscape"`
+- `header`: HTML string. Use `{{pageNumber}}` and `{{totalPages}}` for interpolation.
+- `footer`: HTML string. Use `{{pageNumber}}` and `{{totalPages}}` for interpolation.
+- `printBackground`: boolean (default: true)
+- `output`: `"url"` (default) | `"base64"`
+
+---
+
+### GET /v1/generations/:id
+
+Get a specific generation.
+
+**Response:**
+```json
+{
+  "id": "gen_abc123",
+  "template_id": null,
+  "input_type": "html",
+  "status": "completed",
+  "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf",
+  "pages": 2,
+  "file_size": 45230,
+  "generation_time_ms": 1840,
+  "created_at": "2026-02-24T12:00:00.000Z"
+}
+```
+
+### GET /v1/generations
+
+List generations. Query params: `limit` (default 50, max 100), `offset` (default 0).
+
+---
+
+### POST /v1/templates
+
+Create a template.
+
+**Request:**
+```json
+{
+  "name": "Invoice",
+  "html_content": "<h1>Invoice for {{company}}</h1><p>Total: ${{total}}</p>",
+  "schema": { "company": "string", "total": "number" }
+}
+```
+
+Templates use Handlebars syntax: `{{variable}}`, `{{#each items}}...{{/each}}`, `{{#if condition}}...{{/if}}`.
+
+### GET /v1/templates
+
+List all templates.
+
+### GET /v1/templates/:id
+
+Get a template.
+
+### PUT /v1/templates/:id
+
+Update a template. Version increments when `html_content` changes.
+
+### DELETE /v1/templates/:id
+
+Delete a template.
+
+---
+
+### GET /v1/usage
+
+Get usage for current billing period.
+
+**Response:**
+```json
+{
+  "period_start": "2026-02-01",
+  "period_end": "2026-02-28",
+  "generation_count": 742,
+  "total_pages": 1856,
+  "total_bytes": 89420800,
+  "plan": "starter",
+  "limit": 10000
+}
+```
+
+---
+
+## SDK Methods
+
+### TypeScript SDK
+
+```typescript
+const df = new DocuForge(apiKey, { baseUrl?, timeout? });
+
+// Generate from HTML
+await df.generate({ html, options?, output?, webhook? }): GenerateResponse
+
+// Generate from template
+await df.fromTemplate({ template, data, options?, output? }): GenerateResponse
+
+// Generations
+await df.getGeneration(id): Generation
+await df.listGenerations({ limit?, offset? }): ListResponse<Generation>
+
+// Templates
+await df.templates.create({ name, html_content, schema?, is_public? }): Template
+await df.templates.list(): ListResponse<Template>
+await df.templates.get(id): Template
+await df.templates.update(id, { name?, html_content?, schema?, is_public? }): Template
+await df.templates.delete(id): { deleted: boolean }
+
+// Usage
+await df.getUsage(): UsageStats
+```
+
+### Python SDK
+
+```python
+df = DocuForge(api_key, base_url?, timeout?)
+
+# Generate from HTML
+df.generate(html, options?, output?, webhook?) -> GenerateResponse
+
+# Generate from template
+df.from_template(template, data, options?, output?) -> GenerateResponse
+
+# Generations
+df.get_generation(id) -> Generation
+df.list_generations(limit?, offset?) -> list[Generation]
+
+# Templates
+df.templates.create(name, html_content, schema?, is_public?) -> Template
+df.templates.list() -> list[Template]
+df.templates.get(id) -> Template
+df.templates.update(id, name?, html_content?, schema?, is_public?) -> Template
+df.templates.delete(id) -> bool
+
+# Usage
+df.get_usage() -> UsageStats
+```
+
+---
+
+## Error Codes
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | VALIDATION_ERROR | Invalid request |
+| 401 | UNAUTHORIZED | Invalid API key |
+| 403 | USAGE_LIMIT_EXCEEDED | Monthly limit reached |
+| 404 | NOT_FOUND | Resource not found |
+| 429 | RATE_LIMITED | Too many requests (check Retry-After header) |
+| 500 | INTERNAL_ERROR | Server error |
+
+## Pricing
+
+| Plan | Price | PDFs/month | Max Size |
+|------|-------|-----------|----------|
+| Free | $0 | 1,000 | 10MB |
+| Starter | $29/mo | 10,000 | 25MB |
+| Pro | $99/mo | 100,000 | 50MB |
+| Enterprise | Custom | Unlimited | Unlimited |
+
+## Rate Limits
+
+- Free: 10 req/sec
+- Starter/Pro: 100 req/sec
+- Enterprise: 500 req/sec

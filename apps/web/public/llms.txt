@@ -1,0 +1,24 @@
+# DocuForge
+
+> PDF generation API for developers. HTML in, pixel-perfect PDF out.
+
+## Docs
+- [Quickstart](https://docs.getdocuforge.dev/quickstart)
+- [HTML to PDF](https://docs.getdocuforge.dev/api-reference/generate)
+- [Templates](https://docs.getdocuforge.dev/api-reference/templates)
+- [API Reference](https://docs.getdocuforge.dev/api-reference/generate)
+
+## SDKs
+- TypeScript: `npm install docuforge`
+- Python: `pip install docuforge`
+
+## Quick Example
+```typescript
+import { DocuForge } from 'docuforge';
+const df = new DocuForge('df_live_...');
+const pdf = await df.generate({
+  html: '<h1>Invoice #1234</h1>',
+  options: { format: 'A4', margin: '1in' }
+});
+console.log(pdf.url);
+```
