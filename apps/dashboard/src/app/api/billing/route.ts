@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserId } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/data';
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
-  const userId = await getUserId();
-  if (!userId) {
+  const user = await getCurrentUser();
+  if (!user) {
     return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
   }
+  const userId = user.id;
 
   const body = await request.json().catch(() => ({}));
   const { action, plan } = body;

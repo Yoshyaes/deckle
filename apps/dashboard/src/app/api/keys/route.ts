@@ -3,13 +3,16 @@ import { db, apiKeys, users } from '@/lib/db';
 import { eq, and } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
-import { getUserId } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/data';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  const userId = await getUserId();
-  if (!userId) {
+  const user = await getCurrentUser();
+  if (!user) {
     return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
   }
+  const userId = user.id;
 
   const body = await request.json().catch(() => ({}));
   const name = body.name || 'Default';
@@ -33,10 +36,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const userId = await getUserId();
-  if (!userId) {
+  const user = await getCurrentUser();
+  if (!user) {
     return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
   }
+  const userId = user.id;
 
   const { searchParams } = new URL(request.url);
   const keyId = searchParams.get('id');

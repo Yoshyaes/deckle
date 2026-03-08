@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, templates, templateVersions, users } from '@/lib/db';
 import { eq, and } from 'drizzle-orm';
-import { getUserId } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/data';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const userId = await getUserId();
-  if (!userId) {
+  const user = await getCurrentUser();
+  if (!user) {
     return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
   }
+  const userId = user.id;
 
   const body = await request.json();
   const versionId = body.version_id;
