@@ -18,17 +18,38 @@ export async function getCurrentUser() {
     return user || null;
   }
 
-  const { auth } = await import('@clerk/nextjs/server');
+  const { auth, currentUser } = await import('@clerk/nextjs/server');
   const { userId: clerkId } = await auth();
   if (!clerkId) return null;
 
-  const [user] = await db
+  const [existing] = await db
     .select()
     .from(users)
     .where(eq(users.clerkId, clerkId))
     .limit(1);
 
-  return user || null;
+  if (existing) return existing;
+
+  // Auto-provision user if webhook hasn't fired yet
+  const clerkUser = await currentUser();
+  const email = clerkUser?.emailAddresses?.[0]?.emailAddress || `${clerkId}@clerk.user`;
+
+  const [newUser] = await db
+    .insert(users)
+    .values({ email, clerkId, plan: 'free' })
+    .onConflictDoNothing()
+    .returning();
+
+  if (newUser) return newUser;
+
+  // Race condition: another request may have inserted — re-fetch
+  const [retried] = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkId, clerkId))
+    .limit(1);
+
+  return retried || null;
 }
 
 /**
