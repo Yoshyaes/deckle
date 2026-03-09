@@ -35,6 +35,25 @@ export default function RootLayout({
           colorBackground: '#111113',
           colorText: '#FAFAFA',
           colorPrimary: '#F97316',
+          colorTextSecondary: '#A1A1AA',
+        },
+        elements: {
+          userButtonPopoverCard: {
+            backgroundColor: '#1a1a1d',
+            borderColor: '#333',
+          },
+          userButtonPopoverActionButton: {
+            color: '#FAFAFA',
+          },
+          userButtonPopoverActionButtonText: {
+            color: '#FAFAFA',
+          },
+          userButtonPopoverActionButtonIcon: {
+            color: '#A1A1AA',
+          },
+          userButtonPopoverFooter: {
+            display: 'none',
+          },
         },
       }}
     >
