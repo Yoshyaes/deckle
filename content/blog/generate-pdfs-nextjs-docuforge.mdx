@@ -24,7 +24,7 @@ In this tutorial, you will build a complete PDF generation flow in a Next.js 14 
 Before you start, make sure you have the following:
 
 - **Next.js 14+** with the App Router enabled
-- A **DocuForge account** and API key (grab one from the [dashboard](/dashboard))
+- A **DocuForge account** and API key (grab one from the [dashboard](https://app.getdocuforge.dev/keys))
 - **Node.js 18** or later
 
 That is everything. No Puppeteer installation, no Chromium binaries, no wkhtmltopdf nightmares.
@@ -422,9 +422,9 @@ The tradeoff is that Server Actions are tightly coupled to your Next.js app. If 
 
 You now have a solid foundation for PDF generation in Next.js. From here, there are several directions to explore depending on your use case:
 
-- **[Automate Stripe invoices](/blog/automate-stripe-invoices-pdf)** -- Generate and email PDF invoices on every successful payment using Stripe webhooks.
-- **[Export React components to PDF](/blog/react-component-to-pdf-export)** -- Use `df.fromReact()` to render your existing React components directly to PDF without maintaining separate HTML templates.
-- **[DocuForge vs Puppeteer](/blog/docuforge-vs-puppeteer-pdf-generation)** -- Understand the tradeoffs between a managed API and self-hosted browser automation.
-- **[Generate PDFs in Express](/blog/generate-pdfs-express-docuforge)** -- If your backend is not Next.js, the same SDK works in any Node.js environment.
+- **[Automate Stripe invoices](/blog/invoice-system-stripe-docuforge)** -- Generate and email PDF invoices on every successful payment using Stripe webhooks.
+- **[Export React components to PDF](/blog/add-pdf-export-react-app)** -- Use `df.fromReact()` to render your existing React components directly to PDF without maintaining separate HTML templates.
+- **[DocuForge vs Puppeteer](/blog/docuforge-vs-puppeteer-why-i-switched)** -- Understand the tradeoffs between a managed API and self-hosted browser automation.
+- **[Generate PDFs in Express](/blog/express-pdf-api-html-to-pdf)** -- If your backend is not Next.js, the same SDK works in any Node.js environment.
 
 Check out the [full API reference](/docs/api-reference) for advanced features like batch generation, webhook callbacks, and PDF tools including merge, split, and password protection.

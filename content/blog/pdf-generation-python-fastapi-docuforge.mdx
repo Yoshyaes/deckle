@@ -27,7 +27,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install docuforge fastapi uvicorn
 ```
 
-Next, set your DocuForge API key as an environment variable. You can grab one from the [DocuForge dashboard](/keys).
+Next, set your DocuForge API key as an environment variable. You can grab one from the [DocuForge dashboard](https://app.getdocuforge.dev/keys).
 
 ```bash
 export DOCUFORGE_API_KEY="df_live_your_key_here"
@@ -459,7 +459,7 @@ FastAPI automatically generates interactive API documentation at `http://localho
 
 This tutorial covered the core patterns for integrating DocuForge into a FastAPI application. From here you can explore several directions:
 
-- **Django integration** -- If your project uses Django rather than FastAPI, the SDK works identically. See our [Django tutorial](/blog/pdf-generation-django-docuforge) for middleware patterns and class-based view examples.
+- **Django integration** -- If your project uses Django rather than FastAPI, the SDK works identically. See our [Django tutorial](/blog/django-pdf-generation-made-simple) for middleware patterns and class-based view examples.
 - **Batch generation** -- The `df.batch()` method queues multiple PDFs for asynchronous processing, which is ideal for monthly invoice runs or report pipelines.
-- **Page layout control** -- Our [page layout guide](/docs/page-layout) covers headers, footers, page numbers, and multi-column layouts in detail.
-- **Comparison with local rendering** -- If you are evaluating DocuForge against Puppeteer or WeasyPrint, the [DocuForge vs Puppeteer](/blog/docuforge-vs-puppeteer) article breaks down the trade-offs in performance, accuracy, and operational overhead.
+- **Page layout control** -- Our [page layout guide](/blog/pdf-page-breaks-headers-footers-guide) covers headers, footers, page numbers, and multi-column layouts in detail.
+- **Comparison with local rendering** -- If you are evaluating DocuForge against Puppeteer or WeasyPrint, the [DocuForge vs Puppeteer](/blog/docuforge-vs-puppeteer-why-i-switched) article breaks down the trade-offs in performance, accuracy, and operational overhead.

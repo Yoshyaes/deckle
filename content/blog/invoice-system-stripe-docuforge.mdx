@@ -865,10 +865,8 @@ A few production considerations worth noting. First, return 500 from the webhook
 
 This tutorial covered the core flow: Stripe payment to PDF invoice to customer email. There are several directions you can take it from here.
 
-For **reporting**, look at our guide on [generating Supabase reports with DocuForge](/blog/supabase-reports-docuforge) -- the same template and batch patterns apply to monthly financial summaries.
+For **reporting**, look at our guide on [generating Supabase reports with DocuForge](/blog/generate-report-pdfs-supabase-data) -- the same template and batch patterns apply to monthly financial summaries.
 
-If you want more control over **page layout** -- custom headers per page, landscape tables, or page break control -- the [page layout and headers guide](/blog/page-layout-headers-footers) covers all the options available in the `PDFOptions` object.
+If you want more control over **page layout** -- custom headers per page, landscape tables, or page break control -- the [page layout and headers guide](/blog/pdf-page-breaks-headers-footers-guide) covers all the options available in the `PDFOptions` object.
 
-For teams building a full SaaS billing portal, the [Next.js integration guide](/docs/frameworks/nextjs) shows how to add a customer-facing invoice history page with on-demand PDF regeneration.
-
-The complete source code from this tutorial is available in the [DocuForge examples repository](https://github.com/docuforge/examples/tree/main/stripe-invoices).
+For teams building a full SaaS billing portal, the [Next.js integration guide](/docs/guides/nextjs) shows how to add a customer-facing invoice history page with on-demand PDF regeneration.
