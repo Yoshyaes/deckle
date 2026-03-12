@@ -7,6 +7,8 @@ export interface DocumentProps {
   title?: string;
   /** Custom CSS styles injected into a <style> tag in the document head */
   styles?: string;
+  /** Optional CSS class name applied to the body element */
+  className?: string;
 }
 
 /**
@@ -21,6 +23,7 @@ export const Document: React.FC<DocumentProps> = ({
   children,
   title,
   styles,
+  className,
 }) => {
   return (
     <html>
@@ -31,6 +34,7 @@ export const Document: React.FC<DocumentProps> = ({
         {styles && <style dangerouslySetInnerHTML={{ __html: styles }} />}
       </head>
       <body
+        className={className}
         style={{
           margin: 0,
           padding: 0,

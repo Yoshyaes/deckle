@@ -9,6 +9,8 @@ export interface GridProps {
   gap?: string;
   /** Additional inline styles applied to the grid container */
   style?: React.CSSProperties;
+  /** Optional CSS class name applied to the outermost element */
+  className?: string;
 }
 
 /**
@@ -22,9 +24,11 @@ export const Grid: React.FC<GridProps> = ({
   columns = 2,
   gap = "16px",
   style,
+  className,
 }) => {
   return (
     <div
+      className={className}
       style={{
         display: "grid",
         gridTemplateColumns: `repeat(${columns}, 1fr)`,

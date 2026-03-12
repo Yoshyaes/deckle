@@ -11,6 +11,10 @@ export interface WatermarkProps {
   angle?: number;
   /** Font size in pixels. Defaults to 72. */
   fontSize?: number;
+  /** Additional inline styles applied to the outermost element */
+  style?: React.CSSProperties;
+  /** Optional CSS class name applied to the outermost element */
+  className?: string;
 }
 
 /**
@@ -27,9 +31,12 @@ export const Watermark: React.FC<WatermarkProps> = ({
   opacity = 0.08,
   angle = -45,
   fontSize = 72,
+  style,
+  className,
 }) => {
   return (
     <div
+      className={className}
       style={{
         position: "absolute",
         top: 0,
@@ -42,6 +49,7 @@ export const Watermark: React.FC<WatermarkProps> = ({
         pointerEvents: "none",
         zIndex: 1000,
         overflow: "hidden",
+        ...style,
       }}
     >
       <span

@@ -9,6 +9,10 @@ export interface BarcodeProps {
   width?: number;
   /** Height in pixels. Defaults to 150 for QR codes, 80 for barcodes. */
   height?: number;
+  /** Additional inline styles applied to the outermost element */
+  style?: React.CSSProperties;
+  /** Optional CSS class name applied to the outermost element */
+  className?: string;
 }
 
 /**
@@ -23,6 +27,8 @@ export const Barcode: React.FC<BarcodeProps> = ({
   type = "qr",
   width,
   height,
+  style,
+  className,
 }) => {
   const defaultWidth = type === "qr" ? 150 : 200;
   const defaultHeight = type === "qr" ? 150 : 80;
@@ -35,6 +41,7 @@ export const Barcode: React.FC<BarcodeProps> = ({
 
   return (
     <div
+      className={className}
       style={{
         display: "inline-block",
         width: `${resolvedWidth}px`,
@@ -43,6 +50,7 @@ export const Barcode: React.FC<BarcodeProps> = ({
         lineHeight: `${resolvedHeight}px`,
         fontSize: "12px",
         fontFamily: "monospace",
+        ...style,
       }}
     >
       {placeholder}

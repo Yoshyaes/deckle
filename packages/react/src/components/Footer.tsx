@@ -5,6 +5,8 @@ export interface FooterProps {
   children: React.ReactNode;
   /** Additional inline styles applied to the footer container */
   style?: React.CSSProperties;
+  /** Optional CSS class name applied to the outermost element */
+  className?: string;
 }
 
 /**
@@ -14,9 +16,10 @@ export interface FooterProps {
  * Uses absolute positioning so the footer sticks to the page bottom regardless
  * of how much content precedes it. Place it inside a `<Page>` component.
  */
-export const Footer: React.FC<FooterProps> = ({ children, style }) => {
+export const Footer: React.FC<FooterProps> = ({ children, style, className }) => {
   return (
     <div
+      className={className}
       style={{
         position: "absolute",
         bottom: "20mm",

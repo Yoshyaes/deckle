@@ -1,6 +1,6 @@
 import React from "react";
 
-export type PageSize = "A4" | "Letter" | "Legal";
+export type PageSize = "A3" | "A4" | "A5" | "B5" | "Letter" | "Legal" | "Tabloid";
 export type PageOrientation = "portrait" | "landscape";
 
 export interface PageProps {
@@ -14,12 +14,18 @@ export interface PageProps {
   margin?: string;
   /** Additional inline styles applied to the page container */
   style?: React.CSSProperties;
+  /** Optional CSS class name applied to the outermost element */
+  className?: string;
 }
 
 const PAGE_DIMENSIONS: Record<PageSize, { width: string; height: string }> = {
+  A3: { width: "297mm", height: "420mm" },
   A4: { width: "210mm", height: "297mm" },
+  A5: { width: "148mm", height: "210mm" },
+  B5: { width: "176mm", height: "250mm" },
   Letter: { width: "8.5in", height: "11in" },
   Legal: { width: "8.5in", height: "14in" },
+  Tabloid: { width: "11in", height: "17in" },
 };
 
 /**
@@ -36,6 +42,7 @@ export const Page: React.FC<PageProps> = ({
   orientation = "portrait",
   margin = "20mm",
   style,
+  className,
 }) => {
   const dimensions = PAGE_DIMENSIONS[size];
 
@@ -46,6 +53,7 @@ export const Page: React.FC<PageProps> = ({
 
   return (
     <div
+      className={className}
       style={{
         width,
         minHeight: height,

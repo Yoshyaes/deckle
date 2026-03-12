@@ -24,6 +24,8 @@ export interface TableProps<T> {
   bordered?: boolean;
   /** Additional inline styles applied to the <table> element */
   style?: React.CSSProperties;
+  /** Optional CSS class name applied to the outermost element */
+  className?: string;
 }
 
 /**
@@ -39,11 +41,13 @@ export function Table<T extends Record<string, any>>({
   striped = false,
   bordered = true,
   style,
+  className,
 }: TableProps<T>) {
   const borderStyle = bordered ? "1px solid #d1d5db" : "none";
 
   return (
     <table
+      className={className}
       style={{
         width: "100%",
         borderCollapse: "collapse",

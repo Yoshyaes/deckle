@@ -7,6 +7,8 @@ export interface SignatureProps {
   width?: string;
   /** Additional inline styles applied to the outer container */
   style?: React.CSSProperties;
+  /** Optional CSS class name applied to the outermost element */
+  className?: string;
 }
 
 /**
@@ -19,9 +21,11 @@ export const Signature: React.FC<SignatureProps> = ({
   label = "Signature",
   width = "250px",
   style,
+  className,
 }) => {
   return (
     <div
+      className={className}
       style={{
         display: "inline-block",
         textAlign: "center",

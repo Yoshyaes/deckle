@@ -5,6 +5,8 @@ export interface HeaderProps {
   children: React.ReactNode;
   /** Additional inline styles applied to the header container */
   style?: React.CSSProperties;
+  /** Optional CSS class name applied to the outermost element */
+  className?: string;
 }
 
 /**
@@ -14,9 +16,10 @@ export interface HeaderProps {
  * area at the top of a page. Place it inside a `<Page>` component before the
  * main content.
  */
-export const Header: React.FC<HeaderProps> = ({ children, style }) => {
+export const Header: React.FC<HeaderProps> = ({ children, style, className }) => {
   return (
     <div
+      className={className}
       style={{
         paddingBottom: "10px",
         marginBottom: "20px",
