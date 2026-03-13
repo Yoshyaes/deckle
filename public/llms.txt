@@ -3,10 +3,10 @@
 > PDF generation API for developers. HTML in, pixel-perfect PDF out.
 
 ## Docs
-- [Quickstart](https://docs.getdocuforge.dev/quickstart)
-- [HTML to PDF](https://docs.getdocuforge.dev/api-reference/generate)
-- [Templates](https://docs.getdocuforge.dev/api-reference/templates)
-- [API Reference](https://docs.getdocuforge.dev/api-reference/generate)
+- [Quickstart](https://fred-7da601c6.mintlify.app/quickstart)
+- [HTML to PDF](https://fred-7da601c6.mintlify.app/api-reference/generate)
+- [Templates](https://fred-7da601c6.mintlify.app/api-reference/templates)
+- [API Reference](https://fred-7da601c6.mintlify.app/api-reference/generate)
 
 ## SDKs
 - TypeScript: `npm install docuforge`

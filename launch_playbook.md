@@ -177,8 +177,8 @@ This is the single most important thing you do this week. It starts generating A
 
 ### Soft Launch Channels
 
-- [ ] Hacker News: `Show HN: React components for building PDF documents` (lead with the open-source library, NOT the paid product)
-- [ ] r/webdev, r/reactjs, r/node
+- [X] Hacker News: `Show HN: React components for building PDF documents` *(posted)*
+- [X] r/webdev, r/reactjs, r/node *(posted)*
 - [ ] Discord servers: Theo's, Vercel, Next.js, general webdev communities
 - [ ] Tweet/X thread about the open-source library
 

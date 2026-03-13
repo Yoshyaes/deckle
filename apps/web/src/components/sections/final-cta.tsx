@@ -22,7 +22,7 @@ export function FinalCta() {
             <Button
               variant="secondary"
               size="lg"
-              href="https://docs.getdocuforge.dev"
+              href="https://fred-7da601c6.mintlify.app"
             >
               Read the Docs
             </Button>

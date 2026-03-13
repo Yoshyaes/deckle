@@ -25,5 +25,5 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://getdocuforge.dev"
-Documentation = "https://docs.getdocuforge.dev"
+Documentation = "https://fred-7da601c6.mintlify.app"
 Repository = "https://github.com/docuforge/docuforge-python"
