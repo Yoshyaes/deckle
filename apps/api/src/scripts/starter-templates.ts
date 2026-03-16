@@ -1146,4 +1146,661 @@ export const starterTemplates: StarterTemplate[] = [
       enclosures: 'Company Overview, Product Brochure',
     },
   },
+  {
+    slug: 'meeting-minutes',
+    name: 'Meeting Minutes',
+    description: 'Structured meeting minutes with attendees, agenda items, action items, and decisions.',
+    category: 'business',
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; padding: 40px; font-size: 12px; line-height: 1.6; }
+  .header { border-bottom: 3px solid #f97316; padding-bottom: 20px; margin-bottom: 30px; }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .doc-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+  .doc-subtitle { font-size: 16px; color: #f97316; font-weight: 600; margin-top: 4px; }
+  .meta-badge { background: #fff7ed; color: #f97316; font-size: 10px; font-weight: 600; padding: 4px 12px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .meta-item { font-size: 11px; color: #6b7280; }
+  .meta-item strong { color: #1a1a2e; }
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 14px; font-weight: 700; color: #1a1a2e; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .attendee-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .attendee { font-size: 11px; padding: 4px 0; }
+  .attendee .name { font-weight: 600; color: #1a1a2e; }
+  .attendee .role { color: #9ca3af; }
+  .agenda-item { margin-bottom: 16px; padding: 12px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #f97316; }
+  .agenda-item h3 { font-size: 13px; font-weight: 600; color: #1a1a2e; margin-bottom: 6px; }
+  .agenda-item p { font-size: 11px; color: #4b5563; }
+  .decision { background: #ecfdf5; border-left: 3px solid #059669; padding: 8px 12px; border-radius: 4px; margin-top: 8px; font-size: 11px; color: #065f46; }
+  .decision::before { content: 'Decision: '; font-weight: 700; }
+  .action-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .action-table th { background: #1a1a2e; color: white; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; text-align: left; }
+  .action-table td { padding: 8px 12px; font-size: 11px; border-bottom: 1px solid #f3f4f6; }
+  .action-table tr:nth-child(even) { background: #f8fafc; }
+  .priority-high { color: #dc2626; font-weight: 600; }
+  .priority-medium { color: #d97706; font-weight: 600; }
+  .priority-low { color: #059669; font-weight: 600; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 10px; color: #9ca3af; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="doc-title">Meeting Minutes</div>
+        <div class="doc-subtitle">{{meeting_title}}</div>
+      </div>
+      <div class="meta-badge">{{meeting_type}}</div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><strong>Date:</strong> {{date}}</div>
+      <div class="meta-item"><strong>Time:</strong> {{time}}</div>
+      <div class="meta-item"><strong>Location:</strong> {{location}}</div>
+      <div class="meta-item"><strong>Facilitator:</strong> {{facilitator}}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Attendees</div>
+    <div class="attendee-grid">
+      {{#each attendees}}
+      <div class="attendee"><span class="name">{{name}}</span> <span class="role">— {{role}}</span></div>
+      {{/each}}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Agenda &amp; Discussion</div>
+    {{#each agenda_items}}
+    <div class="agenda-item">
+      <h3>{{title}}</h3>
+      <p>{{notes}}</p>
+      {{#if decision}}
+      <div class="decision">{{decision}}</div>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+
+  <div class="section">
+    <div class="section-title">Action Items</div>
+    <table class="action-table">
+      <thead>
+        <tr><th>Action</th><th>Owner</th><th>Due Date</th><th>Priority</th></tr>
+      </thead>
+      <tbody>
+        {{#each action_items}}
+        <tr>
+          <td>{{description}}</td>
+          <td>{{owner}}</td>
+          <td>{{due_date}}</td>
+          <td class="priority-{{priority}}">{{priority}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+
+  {{#if next_meeting}}
+  <div class="section">
+    <div class="section-title">Next Meeting</div>
+    <p style="font-size: 11px; color: #4b5563;">{{next_meeting}}</p>
+  </div>
+  {{/if}}
+
+  <div class="footer">
+    <div>Prepared by {{facilitator}}</div>
+    <div>{{date}}</div>
+  </div>
+</body>
+</html>`,
+    sampleData: {
+      meeting_title: 'Q1 Product Roadmap Review',
+      meeting_type: 'Weekly Standup',
+      date: 'March 10, 2026',
+      time: '10:00 AM — 11:30 AM',
+      location: 'Conference Room A / Zoom',
+      facilitator: 'Sarah Johnson',
+      attendees: [
+        { name: 'Sarah Johnson', role: 'Product Manager' },
+        { name: 'David Park', role: 'Engineering Lead' },
+        { name: 'Emily Carter', role: 'Designer' },
+        { name: 'James Liu', role: 'Backend Developer' },
+        { name: 'Maria Santos', role: 'QA Engineer' },
+        { name: 'Alex Kim', role: 'DevOps' },
+      ],
+      agenda_items: [
+        { title: '1. Sprint Review', notes: 'Completed 14 of 16 planned story points. Two items moved to next sprint due to API dependency delays.', decision: 'Carry over remaining items and re-prioritize next sprint.' },
+        { title: '2. Template Editor Redesign', notes: 'Emily presented the updated wireframes for the drag-and-drop editor. The team discussed accessibility improvements and mobile responsiveness.', decision: 'Approve wireframes for development. Target beta release in 3 weeks.' },
+        { title: '3. Infrastructure Updates', notes: 'Alex proposed migrating the PDF rendering pipeline to a new browser pool architecture for improved performance and reliability.' },
+      ],
+      action_items: [
+        { description: 'Draft revised sprint backlog', owner: 'Sarah Johnson', due_date: 'March 12', priority: 'high' },
+        { description: 'Create component library for editor', owner: 'Emily Carter', due_date: 'March 17', priority: 'medium' },
+        { description: 'Benchmark browser pool options', owner: 'Alex Kim', due_date: 'March 14', priority: 'high' },
+        { description: 'Write integration tests for batch API', owner: 'James Liu', due_date: 'March 19', priority: 'medium' },
+      ],
+      next_meeting: 'March 17, 2026 at 10:00 AM — Conference Room A / Zoom',
+    },
+  },
+  {
+    slug: 'nda',
+    name: 'Non-Disclosure Agreement',
+    description: 'Standard mutual NDA with defined terms, obligations, and signature blocks.',
+    category: 'legal',
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Georgia', 'Times New Roman', serif; color: #1a1a2e; padding: 50px 60px; font-size: 12px; line-height: 1.8; }
+  .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #1a1a2e; padding-bottom: 24px; }
+  .title { font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #1a1a2e; }
+  .subtitle { font-size: 11px; color: #6b7280; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .effective-date { font-size: 12px; margin-top: 12px; color: #4b5563; }
+  .parties { margin-bottom: 30px; padding: 16px 20px; background: #f8fafc; border-radius: 4px; }
+  .parties p { margin-bottom: 8px; }
+  .parties strong { color: #1a1a2e; }
+  .section { margin-bottom: 20px; }
+  .section-num { font-weight: 700; color: #f97316; margin-right: 6px; }
+  .section h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1a1a2e; margin-bottom: 8px; }
+  .section p { text-align: justify; margin-bottom: 8px; }
+  .obligations-list { padding-left: 24px; margin: 8px 0; }
+  .obligations-list li { margin-bottom: 6px; }
+  .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+  .sig-block { margin-top: 20px; }
+  .sig-label { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .sig-line { border-bottom: 1px solid #1a1a2e; height: 40px; margin-bottom: 4px; }
+  .sig-info { font-size: 11px; color: #4b5563; }
+  .sig-info strong { color: #1a1a2e; display: block; }
+  .footer { margin-top: 40px; text-align: center; font-size: 9px; color: #d1d5db; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">Non-Disclosure Agreement</div>
+    <div class="subtitle">Mutual Confidentiality Agreement</div>
+    <div class="effective-date">Effective Date: {{effective_date}}</div>
+  </div>
+
+  <div class="parties">
+    <p><strong>Disclosing Party:</strong> {{party_a_name}}, {{party_a_entity_type}}, with its principal office at {{party_a_address}} ("Party A")</p>
+    <p><strong>Receiving Party:</strong> {{party_b_name}}, {{party_b_entity_type}}, with its principal office at {{party_b_address}} ("Party B")</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="section-num">1.</span> Purpose</h2>
+    <p>The parties wish to explore a potential business relationship concerning {{purpose}} (the "Purpose"). In connection with this Purpose, each party may disclose certain confidential and proprietary information to the other party.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="section-num">2.</span> Definition of Confidential Information</h2>
+    <p>"Confidential Information" means any and all non-public information, including but not limited to technical, business, financial, customer, and product development information, disclosed by either party in written, oral, electronic, or visual form.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="section-num">3.</span> Obligations</h2>
+    <p>The receiving party agrees to:</p>
+    <ul class="obligations-list">
+      <li>Maintain the confidentiality of all Confidential Information;</li>
+      <li>Not disclose Confidential Information to any third party without prior written consent;</li>
+      <li>Use Confidential Information solely for the Purpose described herein;</li>
+      <li>Protect Confidential Information with at least the same degree of care used to protect its own confidential information.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2><span class="section-num">4.</span> Exclusions</h2>
+    <p>Confidential Information does not include information that: (a) is or becomes publicly available through no fault of the receiving party; (b) was known to the receiving party prior to disclosure; (c) is independently developed without use of the Confidential Information; or (d) is rightfully obtained from a third party without restriction.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="section-num">5.</span> Term</h2>
+    <p>This Agreement shall remain in effect for a period of {{term_years}} year(s) from the Effective Date. Obligations of confidentiality shall survive termination for an additional {{survival_years}} year(s).</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="section-num">6.</span> Governing Law</h2>
+    <p>This Agreement shall be governed by the laws of the State of {{governing_state}}, without regard to conflicts of law principles.</p>
+  </div>
+
+  <div class="signatures">
+    <div>
+      <div class="sig-label">Party A</div>
+      <div class="sig-block">
+        <div class="sig-line"></div>
+        <div class="sig-info">
+          <strong>{{party_a_signer}}</strong>
+          {{party_a_signer_title}}<br>
+          {{party_a_name}}<br>
+          Date: _______________
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="sig-label">Party B</div>
+      <div class="sig-block">
+        <div class="sig-line"></div>
+        <div class="sig-info">
+          <strong>{{party_b_signer}}</strong>
+          {{party_b_signer_title}}<br>
+          {{party_b_name}}<br>
+          Date: _______________
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Agreement ID: {{agreement_id}}</div>
+</body>
+</html>`,
+    sampleData: {
+      effective_date: 'March 1, 2026',
+      party_a_name: 'Acme Corp',
+      party_a_entity_type: 'a Delaware corporation',
+      party_a_address: '123 Business Ave, San Francisco, CA 94107',
+      party_a_signer: 'Sarah Johnson',
+      party_a_signer_title: 'VP of Business Development',
+      party_b_name: 'TechStart Inc.',
+      party_b_entity_type: 'a California corporation',
+      party_b_address: '456 Innovation Blvd, Austin, TX 78701',
+      party_b_signer: 'Michael Chen',
+      party_b_signer_title: 'Chief Executive Officer',
+      purpose: 'a potential technology partnership and API integration',
+      term_years: '2',
+      survival_years: '3',
+      governing_state: 'California',
+      agreement_id: 'NDA-2026-00314',
+    },
+  },
+  {
+    slug: 'event-ticket',
+    name: 'Event Ticket',
+    description: 'Printable event ticket with QR code, seat info, and event details.',
+    category: 'marketing',
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page { size: 8in 4in; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; }
+  .ticket { width: 8in; height: 4in; display: flex; position: relative; background: white; }
+  .main { flex: 1; padding: 30px; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(135deg, #1a1a2e 0%, #2d2b55 100%); color: white; }
+  .stub { width: 2.2in; padding: 24px 20px; background: #f97316; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; }
+  .stub::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 1px; border-left: 2px dashed rgba(255,255,255,0.3); }
+  .event-name { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; line-height: 1.2; }
+  .event-tagline { font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 4px; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .detail-label { font-size: 8px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.5); margin-bottom: 2px; }
+  .detail-value { font-size: 13px; font-weight: 600; }
+  .ticket-footer { display: flex; justify-content: space-between; align-items: flex-end; }
+  .ticket-id { font-size: 9px; color: rgba(255,255,255,0.4); font-family: monospace; }
+  .attendee-name { font-size: 11px; color: rgba(255,255,255,0.7); }
+  .stub-event { font-size: 12px; font-weight: 700; margin-bottom: 16px; }
+  .stub-detail { font-size: 10px; margin-bottom: 4px; opacity: 0.9; }
+  .stub-seat { font-size: 28px; font-weight: 800; margin: 12px 0; letter-spacing: 1px; }
+  .stub-label { font-size: 8px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+  .qr-area { margin-top: 12px; background: white; padding: 8px; border-radius: 6px; display: inline-block; }
+</style>
+</head>
+<body>
+  <div class="ticket">
+    <div class="main">
+      <div>
+        <div class="event-name">{{event_name}}</div>
+        {{#if tagline}}<div class="event-tagline">{{tagline}}</div>{{/if}}
+      </div>
+      <div class="detail-grid">
+        <div>
+          <div class="detail-label">Date</div>
+          <div class="detail-value">{{event_date}}</div>
+        </div>
+        <div>
+          <div class="detail-label">Time</div>
+          <div class="detail-value">{{event_time}}</div>
+        </div>
+        <div>
+          <div class="detail-label">Venue</div>
+          <div class="detail-value">{{venue}}</div>
+        </div>
+        <div>
+          <div class="detail-label">Ticket Type</div>
+          <div class="detail-value">{{ticket_type}}</div>
+        </div>
+      </div>
+      <div class="ticket-footer">
+        <div>
+          <div class="attendee-name">{{attendee_name}}</div>
+          <div class="ticket-id">{{ticket_id}}</div>
+        </div>
+        <div class="ticket-id">{{barcode:{{ticket_id}}}}</div>
+      </div>
+    </div>
+    <div class="stub">
+      <div class="stub-event">{{event_name}}</div>
+      <div class="stub-detail">{{event_date}}</div>
+      <div class="stub-detail">{{event_time}}</div>
+      <div class="stub-label">Seat</div>
+      <div class="stub-seat">{{seat}}</div>
+      <div class="qr-area">{{qr:{{ticket_id}}}}</div>
+    </div>
+  </div>
+</body>
+</html>`,
+    sampleData: {
+      event_name: 'DevForge Summit 2026',
+      tagline: 'The Future of Developer Tools',
+      event_date: 'April 15, 2026',
+      event_time: '9:00 AM — 6:00 PM',
+      venue: 'Moscone Center, San Francisco',
+      ticket_type: 'VIP All-Access',
+      attendee_name: 'Alexandra Chen',
+      seat: 'A-12',
+      ticket_id: 'TKT-2026-04158',
+    },
+  },
+  {
+    slug: 'purchase-order',
+    name: 'Purchase Order',
+    description: 'Professional purchase order with line items, shipping details, and approval signatures.',
+    category: 'finance',
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; padding: 40px; font-size: 12px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #f97316; }
+  .company-name { font-size: 22px; font-weight: 700; color: #f97316; }
+  .company-details { font-size: 10px; color: #6b7280; margin-top: 4px; line-height: 1.6; }
+  .po-title { font-size: 28px; font-weight: 700; color: #1a1a2e; text-align: right; }
+  .po-number { font-size: 14px; color: #f97316; font-weight: 600; text-align: right; margin-top: 4px; }
+  .po-date { font-size: 11px; color: #6b7280; text-align: right; margin-top: 4px; }
+  .address-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+  .address-box { padding: 16px; background: #f8fafc; border-radius: 6px; border-top: 3px solid #f97316; }
+  .address-box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #f97316; font-weight: 700; margin-bottom: 8px; }
+  .address-box p { font-size: 11px; color: #4b5563; line-height: 1.6; }
+  .address-box strong { color: #1a1a2e; }
+  .items-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  .items-table th { background: #1a1a2e; color: white; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; text-align: left; }
+  .items-table th:nth-child(3), .items-table th:nth-child(4), .items-table th:nth-child(5) { text-align: right; }
+  .items-table td { padding: 10px 12px; font-size: 11px; border-bottom: 1px solid #f3f4f6; }
+  .items-table td:nth-child(3), .items-table td:nth-child(4), .items-table td:nth-child(5) { text-align: right; }
+  .items-table tr:nth-child(even) { background: #f8fafc; }
+  .item-desc { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+  .totals { display: flex; justify-content: flex-end; margin-bottom: 30px; }
+  .totals-box { width: 280px; }
+  .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 11px; color: #4b5563; }
+  .totals-row.total { border-top: 2px solid #1a1a2e; padding-top: 10px; margin-top: 6px; font-size: 14px; font-weight: 700; color: #1a1a2e; }
+  .terms { margin-bottom: 30px; padding: 16px; background: #f8fafc; border-radius: 6px; }
+  .terms h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1a1a2e; margin-bottom: 8px; }
+  .terms p { font-size: 10px; color: #6b7280; line-height: 1.6; }
+  .approval { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+  .sig-block label { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sig-line { border-bottom: 1px solid #1a1a2e; height: 36px; margin: 8px 0 4px; }
+  .sig-info { font-size: 10px; color: #6b7280; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="company-name">{{company_name}}</div>
+      <div class="company-details">{{company_address}}<br>{{company_phone}} &middot; {{company_email}}</div>
+    </div>
+    <div>
+      <div class="po-title">Purchase Order</div>
+      <div class="po-number">{{po_number}}</div>
+      <div class="po-date">Date: {{date}}<br>Required by: {{delivery_date}}</div>
+    </div>
+  </div>
+
+  <div class="address-grid">
+    <div class="address-box">
+      <h3>Vendor</h3>
+      <p><strong>{{vendor_name}}</strong><br>{{vendor_address}}<br>{{vendor_contact}}</p>
+    </div>
+    <div class="address-box">
+      <h3>Ship To</h3>
+      <p><strong>{{ship_to_name}}</strong><br>{{ship_to_address}}<br>Attn: {{ship_to_contact}}</p>
+    </div>
+  </div>
+
+  <table class="items-table">
+    <thead>
+      <tr><th>Item</th><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr>
+    </thead>
+    <tbody>
+      {{#each items}}
+      <tr>
+        <td>{{sku}}</td>
+        <td>{{name}}<div class="item-desc">{{description}}</div></td>
+        <td>{{quantity}}</td>
+        <td>\${{unit_price}}</td>
+        <td>\${{total}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="totals-box">
+      <div class="totals-row"><span>Subtotal</span><span>\${{subtotal}}</span></div>
+      <div class="totals-row"><span>Shipping</span><span>\${{shipping}}</span></div>
+      <div class="totals-row"><span>Tax ({{tax_rate}})</span><span>\${{tax}}</span></div>
+      <div class="totals-row total"><span>Total</span><span>\${{total}}</span></div>
+    </div>
+  </div>
+
+  <div class="terms">
+    <h3>Terms &amp; Conditions</h3>
+    <p>{{terms}}</p>
+  </div>
+
+  <div class="approval">
+    <div class="sig-block">
+      <label>Authorized By</label>
+      <div class="sig-line"></div>
+      <div class="sig-info">{{authorized_by}} — {{authorized_title}}</div>
+    </div>
+    <div class="sig-block">
+      <label>Approved By</label>
+      <div class="sig-line"></div>
+      <div class="sig-info">{{approved_by}} — {{approved_title}}</div>
+    </div>
+  </div>
+</body>
+</html>`,
+    sampleData: {
+      company_name: 'Acme Corp',
+      company_address: '123 Business Ave, San Francisco, CA 94107',
+      company_phone: '(415) 555-0100',
+      company_email: 'procurement@acme.com',
+      po_number: 'PO-2026-00892',
+      date: 'March 5, 2026',
+      delivery_date: 'March 20, 2026',
+      vendor_name: 'Office Supply Co.',
+      vendor_address: '789 Vendor Blvd, Chicago, IL 60601',
+      vendor_contact: 'orders@officesupply.com',
+      ship_to_name: 'Acme Corp — Engineering',
+      ship_to_address: '123 Business Ave, Floor 4, San Francisco, CA 94107',
+      ship_to_contact: 'David Park',
+      items: [
+        { sku: 'MON-27-4K', name: '27" 4K Monitor', description: 'IPS panel, USB-C, adjustable stand', quantity: '5', unit_price: '449.00', total: '2,245.00' },
+        { sku: 'KB-MEC-WL', name: 'Mechanical Keyboard', description: 'Wireless, low-profile switches', quantity: '5', unit_price: '129.00', total: '645.00' },
+        { sku: 'DOCK-USB4', name: 'USB4 Docking Station', description: 'Triple display, 100W PD charging', quantity: '5', unit_price: '199.00', total: '995.00' },
+        { sku: 'CHAIR-ERG', name: 'Ergonomic Office Chair', description: 'Mesh back, lumbar support, adjustable arms', quantity: '3', unit_price: '599.00', total: '1,797.00' },
+      ],
+      subtotal: '5,682.00',
+      shipping: '150.00',
+      tax_rate: '8.625%',
+      tax: '489.97',
+      total: '6,321.97',
+      terms: 'Net 30. Goods must be delivered by the Required By date. All items must match specifications. Damaged goods will be returned at vendor expense. This purchase order is subject to the standard terms and conditions of Acme Corp.',
+      authorized_by: 'David Park',
+      authorized_title: 'Engineering Lead',
+      approved_by: 'Sarah Johnson',
+      approved_title: 'VP of Operations',
+    },
+  },
+  {
+    slug: 'report-card',
+    name: 'Student Report Card',
+    description: 'Academic report card with grades, teacher comments, and attendance summary.',
+    category: 'business',
+    htmlContent: `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; padding: 40px; font-size: 12px; }
+  .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #f97316; }
+  .school-name { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+  .school-address { font-size: 10px; color: #6b7280; margin-top: 4px; }
+  .report-title { font-size: 16px; font-weight: 600; color: #f97316; margin-top: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .student-info { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; padding: 16px; background: #f8fafc; border-radius: 6px; }
+  .info-item { font-size: 11px; }
+  .info-item .label { color: #9ca3af; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .info-item .value { font-weight: 600; color: #1a1a2e; }
+  .grades-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  .grades-table th { background: #1a1a2e; color: white; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; text-align: left; }
+  .grades-table th:nth-child(3), .grades-table th:nth-child(4) { text-align: center; }
+  .grades-table td { padding: 10px 12px; font-size: 11px; border-bottom: 1px solid #f3f4f6; }
+  .grades-table td:nth-child(3), .grades-table td:nth-child(4) { text-align: center; }
+  .grades-table tr:nth-child(even) { background: #f8fafc; }
+  .grade-badge { display: inline-block; width: 28px; height: 28px; line-height: 28px; text-align: center; border-radius: 50%; font-weight: 700; font-size: 11px; }
+  .grade-a { background: #ecfdf5; color: #059669; }
+  .grade-b { background: #eff6ff; color: #2563eb; }
+  .grade-c { background: #fffbeb; color: #d97706; }
+  .grade-d { background: #fef2f2; color: #dc2626; }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .summary-box { padding: 16px; border-radius: 6px; border: 1px solid #e5e7eb; }
+  .summary-box h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1a1a2e; margin-bottom: 8px; }
+  .attendance-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center; }
+  .att-num { font-size: 20px; font-weight: 700; color: #f97316; }
+  .att-label { font-size: 9px; color: #9ca3af; text-transform: uppercase; }
+  .gpa-display { text-align: center; }
+  .gpa-num { font-size: 36px; font-weight: 800; color: #f97316; }
+  .gpa-label { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
+  .gpa-scale { font-size: 9px; color: #d1d5db; margin-top: 2px; }
+  .comments { padding: 16px; background: #f8fafc; border-radius: 6px; margin-bottom: 24px; border-left: 3px solid #f97316; }
+  .comments h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1a1a2e; margin-bottom: 8px; }
+  .comments p { font-size: 11px; color: #4b5563; line-height: 1.7; font-style: italic; }
+  .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 30px; margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+  .sig-block label { font-size: 9px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sig-line { border-bottom: 1px solid #1a1a2e; height: 30px; margin-top: 6px; }
+  .sig-name { font-size: 10px; color: #6b7280; margin-top: 4px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="school-name">{{school_name}}</div>
+    <div class="school-address">{{school_address}}</div>
+    <div class="report-title">Academic Report Card — {{term}}</div>
+  </div>
+
+  <div class="student-info">
+    <div class="info-item"><div class="label">Student Name</div><div class="value">{{student_name}}</div></div>
+    <div class="info-item"><div class="label">Student ID</div><div class="value">{{student_id}}</div></div>
+    <div class="info-item"><div class="label">Grade Level</div><div class="value">{{grade_level}}</div></div>
+    <div class="info-item"><div class="label">Homeroom</div><div class="value">{{homeroom}}</div></div>
+    <div class="info-item"><div class="label">Academic Year</div><div class="value">{{academic_year}}</div></div>
+    <div class="info-item"><div class="label">Report Date</div><div class="value">{{report_date}}</div></div>
+  </div>
+
+  <table class="grades-table">
+    <thead>
+      <tr><th>Subject</th><th>Teacher</th><th>Grade</th><th>Score</th><th>Comments</th></tr>
+    </thead>
+    <tbody>
+      {{#each subjects}}
+      <tr>
+        <td style="font-weight:600;">{{name}}</td>
+        <td>{{teacher}}</td>
+        <td><span class="grade-badge grade-{{grade_class}}">{{grade}}</span></td>
+        <td>{{score}}%</td>
+        <td style="font-size:10px; color:#6b7280;">{{comment}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <div class="summary-grid">
+    <div class="summary-box">
+      <h3>Attendance Summary</h3>
+      <div class="attendance-grid">
+        <div><div class="att-num">{{days_present}}</div><div class="att-label">Present</div></div>
+        <div><div class="att-num">{{days_absent}}</div><div class="att-label">Absent</div></div>
+        <div><div class="att-num">{{days_tardy}}</div><div class="att-label">Tardy</div></div>
+      </div>
+    </div>
+    <div class="summary-box">
+      <h3>Cumulative GPA</h3>
+      <div class="gpa-display">
+        <div class="gpa-num">{{gpa}}</div>
+        <div class="gpa-label">Grade Point Average</div>
+        <div class="gpa-scale">on a 4.0 scale</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="comments">
+    <h3>Teacher Comments</h3>
+    <p>{{teacher_comments}}</p>
+  </div>
+
+  <div class="signatures">
+    <div class="sig-block">
+      <label>Principal</label>
+      <div class="sig-line"></div>
+      <div class="sig-name">{{principal_name}}</div>
+    </div>
+    <div class="sig-block">
+      <label>Homeroom Teacher</label>
+      <div class="sig-line"></div>
+      <div class="sig-name">{{homeroom_teacher}}</div>
+    </div>
+    <div class="sig-block">
+      <label>Parent / Guardian</label>
+      <div class="sig-line"></div>
+      <div class="sig-name">Date: ___________</div>
+    </div>
+  </div>
+</body>
+</html>`,
+    sampleData: {
+      school_name: 'Westfield Academy',
+      school_address: '500 Oak Street, Portland, OR 97201 • (503) 555-0200',
+      term: 'Fall Semester',
+      student_name: 'Emma Richardson',
+      student_id: 'STU-2026-1847',
+      grade_level: '10th Grade',
+      homeroom: 'Room 204',
+      academic_year: '2025-2026',
+      report_date: 'January 15, 2026',
+      subjects: [
+        { name: 'English Literature', teacher: 'Ms. Harper', grade: 'A', grade_class: 'a', score: '94', comment: 'Excellent analytical essays' },
+        { name: 'Algebra II', teacher: 'Mr. Tanaka', grade: 'A-', grade_class: 'a', score: '91', comment: 'Strong problem-solving skills' },
+        { name: 'Biology', teacher: 'Dr. Okafor', grade: 'B+', grade_class: 'b', score: '88', comment: 'Great lab work, improve test prep' },
+        { name: 'World History', teacher: 'Ms. Chen', grade: 'A', grade_class: 'a', score: '96', comment: 'Outstanding research projects' },
+        { name: 'Spanish II', teacher: 'Sr. Rodriguez', grade: 'B', grade_class: 'b', score: '85', comment: 'Improving conversational fluency' },
+        { name: 'Computer Science', teacher: 'Mr. Patel', grade: 'A+', grade_class: 'a', score: '98', comment: 'Exceptional coding projects' },
+        { name: 'Physical Education', teacher: 'Coach Williams', grade: 'A', grade_class: 'a', score: '95', comment: 'Excellent participation and teamwork' },
+      ],
+      days_present: '82',
+      days_absent: '3',
+      days_tardy: '1',
+      gpa: '3.78',
+      teacher_comments: 'Emma is a dedicated and curious student who consistently demonstrates a strong work ethic across all subjects. She is a positive contributor to class discussions and works collaboratively with her peers. I encourage Emma to continue challenging herself with advanced coursework next semester.',
+      principal_name: 'Dr. Margaret Foster',
+      homeroom_teacher: 'Ms. Harper',
+    },
+  },
 ];

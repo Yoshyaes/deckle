@@ -5,6 +5,7 @@ import { db } from '../lib/db.js';
 import { apiKeys, users } from '../schema/db.js';
 import { eq } from 'drizzle-orm';
 import { AuthError } from '../lib/errors.js';
+import { logger } from '../lib/logger.js';
 
 export type AuthUser = {
   id: string;
@@ -72,7 +73,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       db.update(apiKeys)
         .set({ lastUsedAt: new Date() })
         .where(eq(apiKeys.id, record.keyId))
-        .catch((err: Error) => console.error('Failed to update lastUsedAt:', err.message));
+        .catch((err: Error) => logger.error({ err: err.message }, 'Failed to update lastUsedAt'));
 
       c.set('user', {
         id: record.userId,

@@ -1,4 +1,5 @@
 import { ZodError } from 'zod';
+import { logger } from './logger.js';
 
 export class AppError extends Error {
   constructor(
@@ -67,7 +68,7 @@ export function errorResponse(err: unknown) {
     };
   }
 
-  console.error('Unexpected error:', err);
+  logger.error({ err }, 'Unexpected error');
   return {
     status: 500,
     body: {

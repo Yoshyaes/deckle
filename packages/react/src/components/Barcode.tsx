@@ -41,6 +41,8 @@ export const Barcode: React.FC<BarcodeProps> = ({
 
   return (
     <div
+      role="img"
+      aria-label={`${type === "qr" ? "QR code" : "Barcode"}: ${value}`}
       className={className}
       style={{
         display: "inline-block",

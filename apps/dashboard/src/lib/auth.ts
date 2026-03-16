@@ -1,7 +1,7 @@
 import { auth } from '@clerk/nextjs/server';
 
 export async function getUserId(): Promise<string> {
-  if (process.env.DOCUFORGE_DEV_BYPASS === 'true') {
+  if (process.env.DOCUFORGE_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'production') {
     return 'dev-user-id';
   }
   const { userId } = await auth();

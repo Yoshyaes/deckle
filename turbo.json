@@ -19,5 +19,5 @@
       "env": ["DATABASE_URL", "REDIS_URL"]
     }
   },
-  "globalDependencies": ["tsconfig.json"]
+  "globalDependencies": ["tsconfig.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"]
 }

@@ -318,10 +318,32 @@ Add your domain in Vercel project settings > Domains (e.g., `app.yourdomain.com`
 
 1. Go to [mintlify.com](https://mintlify.com) and create an account
 2. Connect your GitHub repo
-3. Set the docs directory to `apps/docs`
+3. Set the docs directory to `docs/`
 4. Mintlify auto-deploys on push to main
 
-Custom domain: Configure in Mintlify dashboard (e.g., `docs.yourdomain.com`).
+#### Custom domain setup (`docs.getdocuforge.dev`)
+
+Mintlify custom domains require the **Startup plan** ($150/mo). If using the free tier, docs will be served at your Mintlify subdomain (e.g., `fred-7da601c6.mintlify.app`).
+
+To set up the custom domain:
+
+1. **In Mintlify dashboard:** Go to Settings > Custom Domain > enter `docs.getdocuforge.dev`
+2. **In your DNS provider (Vercel):** Add a CNAME record:
+   - **Name:** `docs`
+   - **Target:** `cname.mintlify.com`
+3. Wait for DNS propagation and TLS certificate issuance (usually <30 minutes)
+
+**Alternative (free):** Use a Vercel rewrite to proxy docs traffic. Add a `vercel.json` in `apps/web/`:
+
+```json
+{
+  "rewrites": [
+    { "source": "/docs/:path*", "destination": "https://fred-7da601c6.mintlify.app/:path*" }
+  ]
+}
+```
+
+This serves docs at `getdocuforge.dev/docs/` without a custom Mintlify domain.
 
 ### Clerk Webhook Setup
 

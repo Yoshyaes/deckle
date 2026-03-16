@@ -32,6 +32,26 @@ export function sanitizeCssValue(value: string): string {
 }
 
 /**
+ * Validate that an object does not exceed a maximum nesting depth.
+ * Prevents DoS via deeply nested template data.
+ */
+export function validateObjectDepth(obj: unknown, maxDepth = 10, currentDepth = 0): void {
+  if (currentDepth > maxDepth) {
+    throw new Error(`Object nesting exceeds maximum depth of ${maxDepth}`);
+  }
+  if (obj === null || typeof obj !== 'object') return;
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      validateObjectDepth(item, maxDepth, currentDepth + 1);
+    }
+    return;
+  }
+  for (const value of Object.values(obj as Record<string, unknown>)) {
+    validateObjectDepth(value, maxDepth, currentDepth + 1);
+  }
+}
+
+/**
  * Recursively strip dangerous keys from an object to prevent prototype pollution.
  */
 export function sanitizeDataKeys(obj: unknown): unknown {

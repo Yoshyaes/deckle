@@ -1,0 +1,118 @@
+---
+title: Starter Templates API
+description: Browse and clone pre-built starter templates.
+---
+
+# Starter Templates
+
+Pre-built templates to help you get started quickly. The list endpoint is public (no authentication required), while cloning requires an API key.
+
+---
+
+## List Starter Templates
+
+`GET https://api.getdocuforge.dev/v1/starter-templates`
+
+**Public** -- no authentication required.
+
+Returns all available starter templates with their metadata and sample data.
+
+### Example
+
+```bash
+curl https://api.getdocuforge.dev/v1/starter-templates
+```
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "slug": "invoice",
+      "name": "Professional Invoice",
+      "description": "A clean, professional invoice template with line items and tax calculation.",
+      "category": "business",
+      "sample_data": {
+        "company": "Acme Corp",
+        "items": [{ "description": "Consulting", "qty": 10, "rate": 150 }],
+        "total": 1500
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Get Starter Template
+
+`GET https://api.getdocuforge.dev/v1/starter-templates/:slug`
+
+**Public** -- no authentication required.
+
+Get the full details of a starter template including its HTML content.
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `slug` | string | Template slug (e.g., `"invoice"`) |
+
+### Response
+
+```json
+{
+  "slug": "invoice",
+  "name": "Professional Invoice",
+  "description": "A clean, professional invoice template with line items and tax calculation.",
+  "category": "business",
+  "html_content": "<!DOCTYPE html><html>...</html>",
+  "sample_data": {
+    "company": "Acme Corp",
+    "items": [{ "description": "Consulting", "qty": 10, "rate": 150 }],
+    "total": 1500
+  }
+}
+```
+
+---
+
+## Clone Starter Template
+
+`POST https://api.getdocuforge.dev/v1/starter-templates/:slug/clone`
+
+**Requires authentication.** Clone a starter template into your account as a new editable template.
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `slug` | string | Template slug to clone (e.g., `"invoice"`) |
+
+### Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/starter-templates/invoice/clone \
+  -H "Authorization: Bearer df_live_sk_..."
+```
+
+### Response -- `201 Created`
+
+```json
+{
+  "id": "tmpl_abc123",
+  "name": "Professional Invoice",
+  "version": 1,
+  "created_at": "2026-03-15T10:30:00.000Z"
+}
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Invalid or missing API key (clone only) |
+| 404 | `NOT_FOUND` | Starter template not found |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error |

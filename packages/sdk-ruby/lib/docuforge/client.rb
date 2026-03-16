@@ -7,17 +7,22 @@ module DocuForge
   class Client
     attr_reader :templates
 
+    # Status codes that are safe to retry.
+    RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504].freeze
+
     # Create a new DocuForge client.
     #
     # @param api_key [String] Your DocuForge API key.
     # @param base_url [String] API base URL.
     # @param timeout [Integer] Request timeout in seconds.
-    def initialize(api_key:, base_url: "https://api.getdocuforge.dev", timeout: 30)
+    # @param max_retries [Integer] Maximum number of retries for failed requests (default 3).
+    def initialize(api_key:, base_url: "https://api.getdocuforge.dev", timeout: 30, max_retries: 3)
       raise ArgumentError, "DocuForge API key is required" if api_key.nil? || api_key.empty?
 
       @api_key = api_key
       @base_url = base_url.chomp("/")
       @timeout = timeout
+      @max_retries = max_retries
 
       @conn = Faraday.new(url: @base_url) do |f|
         f.options.timeout = @timeout
@@ -118,55 +123,82 @@ module DocuForge
 
     protected
 
-    # Make an HTTP request and handle errors.
+    # Make an HTTP request and handle errors. Retries on 429/5xx with
+    # exponential backoff.
     #
     # @param method [Symbol] HTTP method (:get, :post, :put, :delete).
     # @param path [String] API path.
     # @param body [Hash, nil] Request body.
     # @return [Hash] Parsed JSON response.
     def request(method, path, body: nil)
-      response = @conn.run_request(method, path, body ? JSON.generate(body) : nil, nil)
+      last_exception = nil
 
-      begin
-        data = JSON.parse(response.body)
-      rescue JSON::ParserError
-        raise Error.new(
-          "Non-JSON response from API (status #{response.status})",
-          status_code: response.status,
-          code: "INVALID_RESPONSE"
-        )
+      (@max_retries + 1).times do |attempt|
+        begin
+          response = @conn.run_request(method, path, body ? JSON.generate(body) : nil, nil)
+        rescue Faraday::ConnectionFailed, Faraday::TimeoutError => e
+          last_exception = e
+          if attempt < @max_retries
+            sleep(2**attempt)
+            next
+          end
+          raise
+        end
+
+        begin
+          data = JSON.parse(response.body)
+        rescue JSON::ParserError
+          raise Error.new(
+            "Non-JSON response from API (status #{response.status})",
+            status_code: response.status,
+            code: "INVALID_RESPONSE"
+          )
+        end
+
+        # Retry on retryable status codes unless exhausted
+        if RETRYABLE_STATUS_CODES.include?(response.status) && attempt < @max_retries
+          delay = if response.status == 429
+                    (response.headers["Retry-After"] || (2**attempt).to_s).to_f
+                  else
+                    2**attempt
+                  end
+          sleep(delay)
+          next
+        end
+
+        if response.status == 401
+          raise AuthenticationError, data.dig("error", "message") || "Unauthorized"
+        end
+
+        if response.status == 403
+          raise UsageLimitError, data.dig("error", "message") || "Forbidden"
+        end
+
+        if response.status == 404
+          raise NotFoundError, data.dig("error", "message") || "Not found"
+        end
+
+        if response.status == 429
+          retry_after = (response.headers["Retry-After"] || "1").to_i
+          raise RateLimitError.new(
+            data.dig("error", "message") || "Rate limit exceeded",
+            retry_after: retry_after
+          )
+        end
+
+        unless response.success?
+          error = data["error"] || {}
+          raise Error.new(
+            error["message"] || "Request failed",
+            status_code: response.status,
+            code: error["code"] || "UNKNOWN"
+          )
+        end
+
+        return data
       end
 
-      if response.status == 401
-        raise AuthenticationError, data.dig("error", "message") || "Unauthorized"
-      end
-
-      if response.status == 403
-        raise UsageLimitError, data.dig("error", "message") || "Forbidden"
-      end
-
-      if response.status == 404
-        raise NotFoundError, data.dig("error", "message") || "Not found"
-      end
-
-      if response.status == 429
-        retry_after = (response.headers["Retry-After"] || "1").to_i
-        raise RateLimitError.new(
-          data.dig("error", "message") || "Rate limit exceeded",
-          retry_after: retry_after
-        )
-      end
-
-      unless response.success?
-        error = data["error"] || {}
-        raise Error.new(
-          error["message"] || "Request failed",
-          status_code: response.status,
-          code: error["code"] || "UNKNOWN"
-        )
-      end
-
-      data
+      raise last_exception
     end
   end
 end

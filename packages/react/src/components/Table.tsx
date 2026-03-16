@@ -47,6 +47,8 @@ export function Table<T extends Record<string, any>>({
 
   return (
     <table
+      role="table"
+      aria-label="Data table"
       className={className}
       style={{
         width: "100%",
@@ -55,11 +57,13 @@ export function Table<T extends Record<string, any>>({
         ...style,
       }}
     >
-      <thead>
-        <tr>
+      <thead role="rowgroup">
+        <tr role="row">
           {columns.map((col) => (
             <th
               key={col.key}
+              role="columnheader"
+              scope="col"
               style={{
                 padding: "8px 12px",
                 textAlign: col.align || "left",
@@ -77,10 +81,11 @@ export function Table<T extends Record<string, any>>({
           ))}
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {data.map((row, rowIndex) => (
           <tr
             key={rowIndex}
+            role="row"
             style={{
               backgroundColor:
                 striped && rowIndex % 2 === 1 ? "#f9fafb" : "transparent",
@@ -91,6 +96,7 @@ export function Table<T extends Record<string, any>>({
               return (
                 <td
                   key={col.key}
+                  role="cell"
                   style={{
                     padding: "8px 12px",
                     textAlign: col.align || "left",

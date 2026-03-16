@@ -24,6 +24,11 @@ services:
         condition: service_completed_successfully
     volumes:
       - pdf-storage:/app/.storage
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
 
   # One-shot container that pushes the DB schema before API starts
   db-migrate:
@@ -36,6 +41,11 @@ services:
       postgres:
         condition: service_healthy
     restart: "no"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
   postgres:
     image: postgres:16-alpine
@@ -51,6 +61,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
 
   redis:
     image: redis:7-alpine
@@ -63,6 +78,11 @@ services:
       retries: 5
     volumes:
       - redis-data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
 volumes:
   pgdata:

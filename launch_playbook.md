@@ -101,7 +101,7 @@
 #### Step 10: Deploy docs
 
 - [X] Mintlify docs deployed *(live at `fred-7da601c6.mintlify.app`)*
-- [ ] Custom domain `docs.getdocuforge.dev` — blocked by Vercel DNS intercepting subdomains. Options: transfer DNS to Cloudflare, or keep using Mintlify default URL.
+- [X] Docs accessible at `getdocuforge.dev/docs/` via Next.js rewrite proxy to Mintlify. Custom subdomain `docs.getdocuforge.dev` deferred until Mintlify Startup plan ($150/mo) is justified by revenue.
 
 #### Step 11: Verify llms.txt
 
@@ -177,8 +177,8 @@ This is the single most important thing you do this week. It starts generating A
 
 ### Soft Launch Channels
 
-- [ ] Hacker News: `Show HN: React components for building PDF documents` (lead with the open-source library, NOT the paid product)
-- [ ] r/webdev, r/reactjs, r/node
+- [X] Hacker News: `Show HN: React components for building PDF documents` *(posted)*
+- [X] r/webdev, r/reactjs, r/node *(posted)*
 - [ ] Discord servers: Theo's, Vercel, Next.js, general webdev communities
 - [ ] Tweet/X thread about the open-source library
 

@@ -1,12 +1,15 @@
 import 'dotenv/config';
+import './lib/env.js';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { logger } from './lib/logger.js';
 
 import { loggingMiddleware } from './middleware/logging.js';
 import { authMiddleware } from './middleware/auth.js';
 import { rateLimitMiddleware } from './middleware/rateLimit.js';
+import { ipRateLimitMiddleware } from './middleware/ipRateLimit.js';
 import { AppError, errorResponse } from './lib/errors.js';
 import { browserPool } from './services/renderer.js';
 
@@ -38,6 +41,11 @@ app.use('*', cors({
   exposeHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
 }));
 app.use('*', loggingMiddleware);
+
+// IP-based rate limiting for public routes
+app.use('/v1/starter-templates/*', ipRateLimitMiddleware);
+app.use('/llms.txt', ipRateLimitMiddleware);
+app.use('/llms-full.txt', ipRateLimitMiddleware);
 
 // Public routes
 app.route('/health', healthRoutes);
@@ -131,22 +139,28 @@ app.notFound((c) => {
 
 const port = parseInt(process.env.PORT || '3000');
 
-// Initialize browser pool and job worker
-browserPool.initialize().then(() => {
-  console.log('Browser pool initialized');
+// Initialize browser pool and job worker, then start server
+async function start() {
+  await browserPool.initialize();
+  logger.info('Browser pool initialized');
   startWorker();
-});
 
-serve(
-  { fetch: app.fetch, port },
-  (info) => {
-    console.log(`DocuForge API running on http://localhost:${info.port}`);
-  },
-);
+  serve(
+    { fetch: app.fetch, port },
+    (info) => {
+      logger.info(`DocuForge API running on http://localhost:${info.port}`);
+    },
+  );
+}
+
+start().catch((err) => {
+  logger.fatal({ err }, 'Failed to start server');
+  process.exit(1);
+});
 
 // Graceful shutdown
 const shutdown = async () => {
-  console.log('Shutting down...');
+  logger.info('Shutting down...');
   await stopWorker();
   await browserPool.shutdown();
   process.exit(0);
@@ -156,10 +170,10 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled promise rejection:', reason);
+  logger.error({ err: reason }, 'Unhandled promise rejection');
 });
 
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
+  logger.error({ err }, 'Uncaught exception');
   shutdown();
 });

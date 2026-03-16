@@ -13,12 +13,24 @@ import { ValidationError } from '../lib/errors.js';
 
 const app = new Hono();
 
+const MAX_PDF_BASE64_SIZE = 50_000_000; // ~37MB decoded
+
+/**
+ * Estimate decoded size from base64 and reject oversized inputs.
+ */
+function validateBase64Size(b64: string, label = 'PDF'): void {
+  const estimatedBytes = Math.ceil(b64.length * 0.75);
+  if (estimatedBytes > MAX_PDF_BASE64_SIZE * 0.75) {
+    throw new ValidationError(`${label} exceeds maximum size of ${Math.floor(MAX_PDF_BASE64_SIZE * 0.75 / 1_048_576)}MB`);
+  }
+}
+
 /**
  * POST /merge - Merge multiple PDFs into one.
  * Accepts base64-encoded PDF buffers.
  */
 const mergeSchema = z.object({
-  pdfs: z.array(z.string()).min(2, 'At least 2 PDFs required'),
+  pdfs: z.array(z.string().max(MAX_PDF_BASE64_SIZE)).min(2, 'At least 2 PDFs required'),
   output: z.enum(['url', 'base64']).default('url'),
 });
 
@@ -29,6 +41,7 @@ app.post('/merge', async (c) => {
     throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
+  parsed.data.pdfs.forEach((b64, i) => validateBase64Size(b64, `PDF #${i + 1}`));
   const buffers = parsed.data.pdfs.map((b64) => Buffer.from(b64, 'base64'));
   const merged = await mergePdfs(buffers);
 
@@ -49,7 +62,7 @@ app.post('/merge', async (c) => {
  * Each range is [start] or [start, end] (1-indexed, inclusive).
  */
 const splitSchema = z.object({
-  pdf: z.string(),
+  pdf: z.string().max(MAX_PDF_BASE64_SIZE),
   ranges: z.array(z.array(z.number().int().positive()).min(1).max(2)).optional(),
   output: z.enum(['url', 'base64']).default('url'),
 });
@@ -61,6 +74,7 @@ app.post('/split', async (c) => {
     throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
+  validateBase64Size(parsed.data.pdf);
   const buffer = Buffer.from(parsed.data.pdf, 'base64');
   const parts = await splitPdf(buffer, parsed.data.ranges);
 
@@ -91,7 +105,7 @@ app.post('/split', async (c) => {
  * requires a native module (qpdf) in production environments.
  */
 const protectSchema = z.object({
-  pdf: z.string(),
+  pdf: z.string().max(MAX_PDF_BASE64_SIZE),
   user_password: z.string().min(1).optional(),
   owner_password: z.string().min(1),
   permissions: z
@@ -112,6 +126,7 @@ app.post('/protect', async (c) => {
   }
 
   const { PDFDocument } = await import('pdf-lib');
+  validateBase64Size(parsed.data.pdf);
   const buffer = Buffer.from(parsed.data.pdf, 'base64');
   const doc = await PDFDocument.load(buffer);
 
@@ -141,10 +156,11 @@ app.post('/protect', async (c) => {
  */
 app.post('/info', async (c) => {
   const body = await c.req.json();
-  const parsed = z.object({ pdf: z.string() }).safeParse(body);
+  const parsed = z.object({ pdf: z.string().max(MAX_PDF_BASE64_SIZE) }).safeParse(body);
   if (!parsed.success) {
     throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
+  validateBase64Size(parsed.data.pdf);
   const buffer = Buffer.from(parsed.data.pdf, 'base64');
   const info = await getPdfInfo(buffer);
   return c.json(info);
@@ -154,7 +170,7 @@ app.post('/info', async (c) => {
  * POST /forms/fill - Fill form fields in an existing PDF.
  */
 const fillSchema = z.object({
-  pdf: z.string(),
+  pdf: z.string().max(MAX_PDF_BASE64_SIZE),
   fields: z.array(
     z.object({
       name: z.string(),
@@ -172,6 +188,7 @@ app.post('/forms/fill', async (c) => {
     throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
+  validateBase64Size(parsed.data.pdf);
   const buffer = Buffer.from(parsed.data.pdf, 'base64');
   const result = await fillFormFields(buffer, parsed.data.fields, {
     flatten: parsed.data.flatten,
@@ -190,7 +207,7 @@ app.post('/forms/fill', async (c) => {
  * POST /forms/add-fields - Add form fields to a PDF.
  */
 const addFieldsSchema = z.object({
-  pdf: z.string(),
+  pdf: z.string().max(MAX_PDF_BASE64_SIZE),
   fields: z.array(
     z.object({
       name: z.string(),
@@ -214,6 +231,7 @@ app.post('/forms/add-fields', async (c) => {
     throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
+  validateBase64Size(parsed.data.pdf);
   const buffer = Buffer.from(parsed.data.pdf, 'base64');
   const result = await addFormFields(buffer, parsed.data.fields);
 
@@ -231,10 +249,11 @@ app.post('/forms/add-fields', async (c) => {
  */
 app.post('/forms/list-fields', async (c) => {
   const body = await c.req.json();
-  const parsed = z.object({ pdf: z.string() }).safeParse(body);
+  const parsed = z.object({ pdf: z.string().max(MAX_PDF_BASE64_SIZE) }).safeParse(body);
   if (!parsed.success) {
     throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
+  validateBase64Size(parsed.data.pdf);
   const buffer = Buffer.from(parsed.data.pdf, 'base64');
   const fields = await listFormFields(buffer);
   return c.json({ fields, total: fields.length });
@@ -244,7 +263,7 @@ app.post('/forms/list-fields', async (c) => {
  * POST /sign - Add a visual signature to a PDF.
  */
 const signSchema = z.object({
-  pdf: z.string(),
+  pdf: z.string().max(MAX_PDF_BASE64_SIZE),
   name: z.string(),
   reason: z.string().optional(),
   location: z.string().optional(),
@@ -265,6 +284,7 @@ app.post('/sign', async (c) => {
   }
 
   const { pdf, output, ...signOpts } = parsed.data;
+  validateBase64Size(pdf);
   const buffer = Buffer.from(pdf, 'base64');
   const result = await addSignature(buffer, signOpts);
 
@@ -281,7 +301,7 @@ app.post('/sign', async (c) => {
  * POST /pdfa - Convert a PDF to PDF/A-1b format.
  */
 const pdfaSchema = z.object({
-  pdf: z.string(),
+  pdf: z.string().max(MAX_PDF_BASE64_SIZE),
   title: z.string().optional(),
   author: z.string().optional(),
   subject: z.string().optional(),
@@ -295,6 +315,7 @@ app.post('/pdfa', async (c) => {
     throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
+  validateBase64Size(parsed.data.pdf);
   const buffer = Buffer.from(parsed.data.pdf, 'base64');
   const result = await makePdfA(buffer, {
     title: parsed.data.title,

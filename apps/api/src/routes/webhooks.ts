@@ -103,7 +103,8 @@ async function handleClerkEvent(c: { json: (body: unknown, status?: number) => R
       // Auto-create first API key
       await createApiKey(user.id, 'Default');
 
-      console.log(`New user created: ${user.id} (${email})`);
+      const { logger } = await import('../lib/logger.js');
+      logger.info({ userId: user.id, email }, 'New user created');
       return c.json({ received: true });
     }
 

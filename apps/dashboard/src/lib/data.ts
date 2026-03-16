@@ -1,7 +1,7 @@
 import { db, users, apiKeys, generations, templates, usageDaily } from './db';
 import { eq, and, desc, sql, gte, count } from 'drizzle-orm';
 
-const DEV_MODE = process.env.DOCUFORGE_DEV_BYPASS === 'true';
+const DEV_MODE = process.env.DOCUFORGE_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'production';
 
 /**
  * Get the current user from Clerk session → DB lookup.

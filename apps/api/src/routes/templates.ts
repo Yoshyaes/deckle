@@ -6,16 +6,18 @@ import { tmplId } from '../lib/id.js';
 import { eq, and, desc } from 'drizzle-orm';
 import { ValidationError, NotFoundError } from '../lib/errors.js';
 
+const MAX_TEMPLATE_HTML_SIZE = 10_485_760; // 10MB
+
 const createTemplateSchema = z.object({
   name: z.string().min(1).max(255),
-  html_content: z.string().min(1),
+  html_content: z.string().min(1).max(MAX_TEMPLATE_HTML_SIZE),
   schema: z.record(z.unknown()).optional(),
   is_public: z.boolean().optional(),
 });
 
 const updateTemplateSchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  html_content: z.string().min(1).optional(),
+  html_content: z.string().min(1).max(MAX_TEMPLATE_HTML_SIZE).optional(),
   schema: z.record(z.unknown()).optional(),
   is_public: z.boolean().optional(),
 });

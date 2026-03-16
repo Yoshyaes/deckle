@@ -30,9 +30,36 @@
       "group": "API Reference",
       "pages": [
         "api-reference/generate",
+        "api-reference/batch",
         "api-reference/generations",
         "api-reference/templates",
         "api-reference/usage"
+      ]
+    },
+    {
+      "group": "PDF Tools",
+      "pages": [
+        "api-reference/pdf-merge",
+        "api-reference/pdf-split",
+        "api-reference/pdf-protect",
+        "api-reference/pdf-info",
+        "api-reference/pdf-sign",
+        "api-reference/pdf-pdfa",
+        "api-reference/pdf-forms"
+      ]
+    },
+    {
+      "group": "Marketplace & Templates",
+      "pages": [
+        "api-reference/marketplace",
+        "api-reference/starter-templates",
+        "api-reference/ai-generate"
+      ]
+    },
+    {
+      "group": "Integrations",
+      "pages": [
+        "api-reference/integrations"
       ]
     },
     {

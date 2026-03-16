@@ -128,4 +128,6 @@ export interface WatermarkOptions {
 export interface DocuForgeOptions {
   baseUrl?: string;
   timeout?: number;
+  /** Maximum number of retries for failed requests (429/5xx). Defaults to 3. */
+  maxRetries?: number;
 }

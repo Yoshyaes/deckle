@@ -3,14 +3,67 @@
 > PDF generation API for developers. HTML in, pixel-perfect PDF out.
 
 ## Docs
-- [Quickstart](https://docs.getdocuforge.dev/quickstart)
-- [HTML to PDF](https://docs.getdocuforge.dev/api-reference/generate)
-- [Templates](https://docs.getdocuforge.dev/api-reference/templates)
-- [API Reference](https://docs.getdocuforge.dev/api-reference/generate)
+- [Quickstart](https://fred-7da601c6.mintlify.app/quickstart)
+- [HTML to PDF](https://fred-7da601c6.mintlify.app/api-reference/generate)
+- [Templates](https://fred-7da601c6.mintlify.app/api-reference/templates)
+- [API Reference](https://fred-7da601c6.mintlify.app/api-reference/generate)
+- [Full LLM Docs](https://getdocuforge.dev/llms-full.txt)
 
 ## SDKs
-- TypeScript: `npm install docuforge`
-- Python: `pip install docuforge`
+- TypeScript: `npm install docuforge` — `DocuForge` class with `generate()`, `fromTemplate()`, `fromReact()`, `batch()`, `templates.*`
+- Python: `pip install docuforge` — mirrors TS SDK API, uses httpx + Pydantic v2
+- Go: `go get github.com/docuforge/docuforge-go` — stdlib net/http, functional options, context-based API
+- Ruby: `gem install docuforge` — uses Faraday HTTP client, idiomatic Ruby API
+
+## Core Endpoints
+- `POST /v1/generate` — Generate PDF from HTML, React (JSX/TSX), or template + data. Supports watermarks, headers/footers with `{{pageNumber}}`/`{{totalPages}}`.
+- `POST /v1/generate/batch` — Async batch generation via job queue. Returns 202 with job IDs.
+- `GET /v1/generations/:id` — Get generation status and result.
+- `GET /v1/generations` — List generation history.
+
+## PDF Tools
+- `POST /v1/pdf/merge` — Merge multiple PDFs (base64 input).
+- `POST /v1/pdf/split` — Split PDF by page ranges.
+- `POST /v1/pdf/protect` — Add password protection.
+- `POST /v1/pdf/info` — Get PDF metadata (page count, size, etc.).
+- `POST /v1/pdf/sign` — Add visual digital signature.
+- `POST /v1/pdf/pdfa` — Convert to PDF/A-1b archival format.
+- `POST /v1/pdf/forms/fill` — Fill form fields in existing PDF.
+- `POST /v1/pdf/forms/add-fields` — Add form fields (text, checkbox, dropdown).
+- `POST /v1/pdf/forms/list-fields` — List form fields in a PDF.
+
+## Templates
+- `POST /v1/templates` — Create template (Handlebars syntax: `{{variable}}`, `{{#each}}`, `{{#if}}`).
+- `GET /v1/templates` — List templates.
+- `GET /v1/templates/:id` — Get template with version info.
+- `PUT /v1/templates/:id` — Update template (auto-increments version).
+- `DELETE /v1/templates/:id` — Delete template.
+- `GET /v1/templates/:id/versions` — List version history.
+- `POST /v1/templates/:id/restore` — Restore to previous version.
+
+## Template Marketplace
+- `GET /v1/marketplace` — Browse public community templates.
+- `POST /v1/marketplace/:id/clone` — Clone a public template to your account.
+- `POST /v1/marketplace/:id/publish` — Publish your template.
+- `GET /v1/starter-templates` — 5 pre-built starter templates (no auth required).
+- `POST /v1/starter-templates/:slug/clone` — Clone a starter template.
+
+## React-to-PDF
+Send JSX/TSX directly via `react` field in `/v1/generate`. Server transpiles with esbuild and renders via `renderToStaticMarkup`. Component library `@docuforge/react` provides: Document, Page, Header, Footer, Table, Grid, Watermark, Barcode, Signature, List, Divider, PageNumber.
+
+## QR Codes & Barcodes
+Use `{{qr:data}}` and `{{barcode:data}}` placeholders in HTML. Replaced with inline SVGs during rendering.
+
+## AI Template Generation
+- `POST /v1/ai/generate-template` — AI-powered template generation using Claude. Requires `ANTHROPIC_API_KEY`.
+
+## MCP Server
+`@docuforge/mcp-server` for AI agent integration (Claude Desktop, Cursor, Claude Code). Provides 7 tools for generating PDFs, managing templates, and querying usage from AI assistants.
+
+## Usage & Billing
+- `GET /v1/usage` — Current billing period stats.
+- Plans: Free (1K PDFs/mo), Starter $29 (10K), Pro $99 (100K), Enterprise (unlimited).
+- Rate limits: Free 10 req/s, Starter/Pro 100 req/s, Enterprise 500 req/s.
 
 ## Quick Example
 ```typescript

@@ -18,7 +18,8 @@ export interface HeaderProps {
  */
 export const Header: React.FC<HeaderProps> = ({ children, style, className }) => {
   return (
-    <div
+    <header
+      role="banner"
       className={className}
       style={{
         paddingBottom: "10px",
@@ -28,6 +29,6 @@ export const Header: React.FC<HeaderProps> = ({ children, style, className }) =>
       }}
     >
       {children}
-    </div>
+    </header>
   );
 };

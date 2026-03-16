@@ -1,4 +1,5 @@
 import { chromium, Browser, BrowserContext } from 'playwright';
+import { logger } from '../lib/logger.js';
 
 interface RenderOptions {
   format?: 'A4' | 'Letter' | 'Legal' | { width: string; height: string };
@@ -70,7 +71,7 @@ class BrowserPool {
     if (entry.usageCount >= this.maxUsagePerBrowser) {
       // Recycle asynchronously but don't use the old browser — schedule replacement
       const idx = this.browsers.indexOf(entry);
-      this.recycleBrowser(idx).catch((err) => console.error('Browser recycle failed:', err));
+      this.recycleBrowser(idx).catch((err) => logger.error({ err }, 'Browser recycle failed'));
     }
 
     return entry.browser;
@@ -125,7 +126,7 @@ function interpolatePageVars(html: string): string {
 
 export async function renderPdf(html: string, options: RenderOptions = {}): Promise<RenderResult> {
   const browser = await browserPool.getBrowser();
-  const context = await browser.newContext();
+  const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
 
   try {

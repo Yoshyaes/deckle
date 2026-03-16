@@ -88,6 +88,14 @@ func WithTimeout(d time.Duration) Option {
 	}
 }
 
+// WithMaxRetries sets the maximum number of retries for failed requests
+// (429/500/502/503/504). The default is 3.
+func WithMaxRetries(n int) Option {
+	return func(c *Client) {
+		c.maxRetries = n
+	}
+}
+
 // --------------------------------------------------------------------------
 // Client
 // --------------------------------------------------------------------------
@@ -98,6 +106,7 @@ type Client struct {
 	apiKey     string
 	baseURL    string
 	httpClient *http.Client
+	maxRetries int
 
 	// Templates provides access to template management operations.
 	Templates *Templates
@@ -116,8 +125,9 @@ func NewClient(apiKey string, opts ...Option) *Client {
 		panic("docuforge: API key is required")
 	}
 	c := &Client{
-		apiKey:  apiKey,
-		baseURL: defaultBaseURL,
+		apiKey:     apiKey,
+		baseURL:    defaultBaseURL,
+		maxRetries: 3,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -141,54 +151,106 @@ type apiErrorBody struct {
 	} `json:"error"`
 }
 
+// isRetryableStatus reports whether the HTTP status code is safe to retry.
+func isRetryableStatus(code int) bool {
+	switch code {
+	case 429, 500, 502, 503, 504:
+		return true
+	}
+	return false
+}
+
 // doRequest performs an HTTP request and decodes the JSON response into dest.
 // If dest is nil the response body is discarded (useful for DELETE requests
-// where only the status code matters).
+// where only the status code matters). Retries retryable errors with
+// exponential backoff.
 func (c *Client) doRequest(ctx context.Context, method, path string, body interface{}, dest interface{}) error {
-	url := c.baseURL + path
+	reqURL := c.baseURL + path
 
-	var reqBody io.Reader
+	var bodyBytes []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
 			return fmt.Errorf("docuforge: failed to marshal request body: %w", err)
 		}
-		reqBody = bytes.NewReader(b)
+		bodyBytes = b
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
-	if err != nil {
-		return fmt.Errorf("docuforge: failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	req.Header.Set("User-Agent", userAgent)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("docuforge: request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024*1024))
-	if err != nil {
-		return fmt.Errorf("docuforge: failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return c.handleErrorResponse(resp, respBytes)
-	}
-
-	if dest != nil && len(respBytes) > 0 {
-		if err := json.Unmarshal(respBytes, dest); err != nil {
-			return fmt.Errorf("docuforge: failed to decode response: %w", err)
+	var lastErr error
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
+		var reqBody io.Reader
+		if bodyBytes != nil {
+			reqBody = bytes.NewReader(bodyBytes)
 		}
+
+		req, err := http.NewRequestWithContext(ctx, method, reqURL, reqBody)
+		if err != nil {
+			return fmt.Errorf("docuforge: failed to create request: %w", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+		req.Header.Set("User-Agent", userAgent)
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("docuforge: request failed: %w", err)
+			if attempt < c.maxRetries {
+				delay := time.Duration(1<<uint(attempt)) * time.Second
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(delay):
+				}
+				continue
+			}
+			return lastErr
+		}
+
+		respBytes, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024*1024))
+		resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("docuforge: failed to read response body: %w", err)
+		}
+
+		if resp.StatusCode >= 400 {
+			// Retry on retryable status codes unless exhausted
+			if isRetryableStatus(resp.StatusCode) && attempt < c.maxRetries {
+				var delay time.Duration
+				if resp.StatusCode == 429 {
+					if ra := resp.Header.Get("Retry-After"); ra != "" {
+						if v, parseErr := strconv.Atoi(ra); parseErr == nil {
+							delay = time.Duration(v) * time.Second
+						}
+					}
+					if delay == 0 {
+						delay = time.Duration(1<<uint(attempt)) * time.Second
+					}
+				} else {
+					delay = time.Duration(1<<uint(attempt)) * time.Second
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(delay):
+				}
+				continue
+			}
+			return c.handleErrorResponse(resp, respBytes)
+		}
+
+		if dest != nil && len(respBytes) > 0 {
+			if err := json.Unmarshal(respBytes, dest); err != nil {
+				return fmt.Errorf("docuforge: failed to decode response: %w", err)
+			}
+		}
+
+		return nil
 	}
 
-	return nil
+	return lastErr
 }
 
 // handleErrorResponse parses an error response and returns the appropriate

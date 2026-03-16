@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List, Optional, Union
 
 import httpx
@@ -89,16 +90,21 @@ class DocuForge:
         print(pdf.url)
     """
 
+    # Status codes that are safe to retry.
+    _RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+
     def __init__(
         self,
         api_key: str,
         base_url: str = "https://api.getdocuforge.dev",
         timeout: float = 30.0,
+        max_retries: int = 3,
     ):
         if not api_key:
             raise ValueError("DocuForge API key is required")
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
+        self._max_retries = max_retries
         self._client = httpx.Client(
             base_url=self._base_url,
             headers={
@@ -111,38 +117,60 @@ class DocuForge:
         self.templates = _Templates(self)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
-        resp = self._client.request(method, path, **kwargs)
+        last_exception: Optional[Exception] = None
 
-        try:
-            data = resp.json()
-        except Exception:
-            if not resp.is_success:
-                raise DocuForgeError(
-                    message=f"Non-JSON response from API (status {resp.status_code})",
-                    status_code=resp.status_code,
-                    code="INVALID_RESPONSE",
+        for attempt in range(self._max_retries + 1):
+            try:
+                resp = self._client.request(method, path, **kwargs)
+            except httpx.TransportError as exc:
+                # Network-level errors are retryable
+                last_exception = exc
+                if attempt < self._max_retries:
+                    time.sleep(1.0 * (2 ** attempt))
+                    continue
+                raise
+
+            try:
+                data = resp.json()
+            except Exception:
+                if not resp.is_success:
+                    raise DocuForgeError(
+                        message=f"Non-JSON response from API (status {resp.status_code})",
+                        status_code=resp.status_code,
+                        code="INVALID_RESPONSE",
+                    )
+                data = {}
+
+            # Retry on retryable status codes (unless we've exhausted attempts)
+            if resp.status_code in self._RETRYABLE_STATUS_CODES and attempt < self._max_retries:
+                if resp.status_code == 429:
+                    delay = float(resp.headers.get("Retry-After", str(1.0 * (2 ** attempt))))
+                else:
+                    delay = 1.0 * (2 ** attempt)
+                time.sleep(delay)
+                continue
+
+            if resp.status_code == 401:
+                raise AuthenticationError(data.get("error", {}).get("message", "Unauthorized"))
+
+            if resp.status_code == 429:
+                retry_after = int(resp.headers.get("Retry-After", "1"))
+                raise RateLimitError(
+                    retry_after=retry_after,
+                    message=data.get("error", {}).get("message", "Rate limited"),
                 )
-            data = {}
 
-        if resp.status_code == 401:
-            raise AuthenticationError(data.get("error", {}).get("message", "Unauthorized"))
+            if not resp.is_success:
+                err = data.get("error", {})
+                raise DocuForgeError(
+                    message=err.get("message", "Request failed"),
+                    status_code=resp.status_code,
+                    code=err.get("code", "UNKNOWN"),
+                )
 
-        if resp.status_code == 429:
-            retry_after = int(resp.headers.get("Retry-After", "1"))
-            raise RateLimitError(
-                retry_after=retry_after,
-                message=data.get("error", {}).get("message", "Rate limited"),
-            )
+            return data
 
-        if not resp.is_success:
-            err = data.get("error", {})
-            raise DocuForgeError(
-                message=err.get("message", "Request failed"),
-                status_code=resp.status_code,
-                code=err.get("code", "UNKNOWN"),
-            )
-
-        return data
+        raise last_exception  # type: ignore[misc]
 
     def generate(
         self,

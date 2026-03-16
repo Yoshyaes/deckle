@@ -1,0 +1,185 @@
+---
+title: PDF Forms API
+description: Fill, add, and list form fields in PDF documents.
+---
+
+# PDF Forms
+
+Endpoints for working with interactive form fields in PDF documents.
+
+---
+
+## Fill Form Fields
+
+`POST https://api.getdocuforge.dev/v1/pdf/forms/fill`
+
+Fill existing form fields in a PDF with provided values.
+
+### Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pdf` | string | Yes | Base64-encoded PDF document |
+| `fields` | object[] | Yes | Array of field name/value pairs (see below) |
+| `flatten` | boolean | No | If `true`, flatten form fields after filling (makes them non-editable). Default: `false` |
+| `output` | string | No | `"url"` (default) or `"base64"` |
+
+### Field Object
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Form field name |
+| `value` | string or boolean | Yes | Value to set. Use `string` for text fields, `boolean` for checkboxes |
+
+### Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/pdf/forms/fill \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdf": "<base64-encoded-pdf>",
+    "fields": [
+      { "name": "full_name", "value": "Jane Doe" },
+      { "name": "email", "value": "jane@example.com" },
+      { "name": "agree_terms", "value": true }
+    ],
+    "flatten": true
+  }'
+```
+
+### Response
+
+```json
+{
+  "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf",
+  "file_size": 55200
+}
+```
+
+---
+
+## Add Form Fields
+
+`POST https://api.getdocuforge.dev/v1/pdf/forms/add-fields`
+
+Add new interactive form fields to an existing PDF.
+
+### Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pdf` | string | Yes | Base64-encoded PDF document |
+| `fields` | object[] | Yes | Array of field definitions (see below) |
+| `output` | string | No | `"url"` (default) or `"base64"` |
+
+### Field Definition
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique field name |
+| `type` | string | Yes | `"text"`, `"checkbox"`, or `"dropdown"` |
+| `page` | integer | Yes | Page index (0-based) |
+| `x` | number | Yes | X coordinate |
+| `y` | number | Yes | Y coordinate |
+| `width` | number | No | Field width in points |
+| `height` | number | No | Field height in points |
+| `options` | string[] | No | Dropdown options (required for `"dropdown"` type) |
+| `defaultValue` | string or boolean | No | Default value for the field |
+
+### Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/pdf/forms/add-fields \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdf": "<base64-encoded-pdf>",
+    "fields": [
+      {
+        "name": "full_name",
+        "type": "text",
+        "page": 0,
+        "x": 100,
+        "y": 700,
+        "width": 200,
+        "height": 20
+      },
+      {
+        "name": "country",
+        "type": "dropdown",
+        "page": 0,
+        "x": 100,
+        "y": 650,
+        "width": 200,
+        "height": 20,
+        "options": ["United States", "Canada", "United Kingdom"]
+      },
+      {
+        "name": "agree_terms",
+        "type": "checkbox",
+        "page": 0,
+        "x": 100,
+        "y": 600
+      }
+    ]
+  }'
+```
+
+### Response
+
+```json
+{
+  "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf",
+  "file_size": 61500
+}
+```
+
+---
+
+## List Form Fields
+
+`POST https://api.getdocuforge.dev/v1/pdf/forms/list-fields`
+
+List all form fields in a PDF document.
+
+### Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pdf` | string | Yes | Base64-encoded PDF document |
+
+### Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/pdf/forms/list-fields \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdf": "<base64-encoded-pdf>"
+  }'
+```
+
+### Response
+
+```json
+{
+  "fields": [
+    { "name": "full_name", "type": "text", "value": "" },
+    { "name": "email", "type": "text", "value": "" },
+    { "name": "agree_terms", "type": "checkbox", "value": false }
+  ],
+  "total": 3
+}
+```
+
+## Errors
+
+All form endpoints return the same error codes:
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid request body or PDF exceeds size limit |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error processing form fields |

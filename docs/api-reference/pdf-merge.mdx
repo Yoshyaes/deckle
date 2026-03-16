@@ -1,0 +1,61 @@
+---
+title: POST /v1/pdf/merge
+description: Merge multiple PDFs into a single document.
+---
+
+# Merge PDFs
+
+`POST https://api.getdocuforge.dev/v1/pdf/merge`
+
+Combine two or more PDF documents into a single file. PDFs are merged in the order provided.
+
+## Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pdfs` | string[] | Yes | Array of base64-encoded PDF documents (minimum 2) |
+| `output` | string | No | `"url"` (default) or `"base64"` |
+
+Each PDF must be under ~27MB when decoded.
+
+## Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/pdf/merge \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdfs": [
+      "<base64-encoded-pdf-1>",
+      "<base64-encoded-pdf-2>"
+    ],
+    "output": "url"
+  }'
+```
+
+## Response (URL mode)
+
+```json
+{
+  "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf",
+  "file_size": 102400
+}
+```
+
+## Response (base64 mode)
+
+```json
+{
+  "data": "<base64-encoded-merged-pdf>",
+  "file_size": 102400
+}
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Fewer than 2 PDFs provided, or PDF exceeds size limit |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error during merge |

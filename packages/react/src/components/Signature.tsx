@@ -25,6 +25,8 @@ export const Signature: React.FC<SignatureProps> = ({
 }) => {
   return (
     <div
+      role="img"
+      aria-label={label}
       className={className}
       style={{
         display: "inline-block",

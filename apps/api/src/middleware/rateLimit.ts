@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { redis } from '../lib/redis.js';
-import { RateLimitError } from '../lib/errors.js';
+import { RateLimitError, AppError } from '../lib/errors.js';
+import { logger } from '../lib/logger.js';
 
 const PLAN_RATE_LIMITS: Record<string, number> = {
   free: 10,
@@ -8,6 +9,8 @@ const PLAN_RATE_LIMITS: Record<string, number> = {
   pro: 100,
   enterprise: 500,
 };
+
+let consecutiveFailures = 0;
 
 export const rateLimitMiddleware = createMiddleware(async (c, next) => {
   const user = c.get('user');
@@ -29,6 +32,9 @@ export const rateLimitMiddleware = createMiddleware(async (c, next) => {
     const rawCount = results?.[2]?.[1];
     const count = typeof rawCount === 'number' && Number.isFinite(rawCount) ? rawCount : Infinity;
 
+    // Reset consecutive failure counter on success
+    consecutiveFailures = 0;
+
     c.header('X-RateLimit-Limit', String(limit));
     c.header('X-RateLimit-Remaining', String(Math.max(0, limit - count)));
     c.header('X-RateLimit-Reset', String(Math.ceil((now + window) / 1000)));
@@ -39,8 +45,14 @@ export const rateLimitMiddleware = createMiddleware(async (c, next) => {
     }
   } catch (err) {
     if (err instanceof RateLimitError) throw err;
+    // Track consecutive failures
+    consecutiveFailures++;
+    if (consecutiveFailures > 10) {
+      logger.error({ err, consecutiveFailures }, 'Rate limiter: too many consecutive Redis failures, rejecting request');
+      throw new AppError(503, 'SERVICE_UNAVAILABLE', 'Rate limiting service unavailable');
+    }
     // Fail open: allow request if Redis is unavailable
-    console.error('Rate limiter error (allowing request):', err);
+    logger.error({ err, consecutiveFailures }, 'Rate limiter error (allowing request)');
   }
 
   return next();

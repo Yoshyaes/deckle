@@ -55,6 +55,10 @@ RUN pnpm --filter @docuforge/api build
 # Install Playwright Chromium
 RUN cd apps/api && pnpm exec playwright install chromium
 
+RUN groupadd -r docuforge && useradd -r -g docuforge -d /app docuforge
+RUN chown -R docuforge:docuforge /app
+USER docuforge
+
 EXPOSE 3000
 
 ENV NODE_ENV=production

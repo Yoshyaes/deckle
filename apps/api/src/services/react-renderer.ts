@@ -48,22 +48,27 @@ function transpileComponent(source: string): (props: Record<string, unknown>) =>
   // Execute in a VM sandbox with a timeout to prevent infinite loops and
   // block access to Node.js internals. The context only exposes the
   // minimum required globals (module, exports, require shim, React).
-  const sandbox = createContext({
-    module: moduleObj,
-    exports: moduleExports,
-    require: requireShim,
-    React,
-    // Dangerous globals explicitly set to undefined
-    process: undefined,
-    global: undefined,
-    globalThis: undefined,
-    Buffer: undefined,
-    setTimeout: undefined,
-    setInterval: undefined,
-    setImmediate: undefined,
-    eval: undefined,
-    Function: undefined,
-  });
+  const sandbox = createContext(
+    {
+      module: moduleObj,
+      exports: moduleExports,
+      require: requireShim,
+      React,
+      // Dangerous globals explicitly set to undefined
+      process: undefined,
+      global: undefined,
+      globalThis: undefined,
+      Buffer: undefined,
+      setTimeout: undefined,
+      setInterval: undefined,
+      setImmediate: undefined,
+      eval: undefined,
+      Function: undefined,
+    },
+    {
+      codeGeneration: { strings: false, wasm: false },
+    },
+  );
 
   const script = new Script(result.code, { filename: 'user-component.tsx' });
   script.runInContext(sandbox, { timeout: SANDBOX_TIMEOUT_MS });
@@ -83,11 +88,17 @@ function transpileComponent(source: string): (props: Record<string, unknown>) =>
 /**
  * Render a React component string to full HTML document.
  */
+const MAX_SOURCE_SIZE = 1_048_576; // 1MB
+
 export function renderReactToHtml(
   componentSource: string,
   props: Record<string, unknown> = {},
   styles?: string,
 ): string {
+  if (componentSource.length > MAX_SOURCE_SIZE) {
+    throw new ValidationError(`React component source exceeds maximum size of ${MAX_SOURCE_SIZE} bytes`);
+  }
+
   try {
     const Component = transpileComponent(componentSource);
     const element = createElement(Component, props);
@@ -109,6 +120,9 @@ export function renderReactToHtml(
   } catch (err) {
     if (err instanceof ValidationError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
-    throw new ValidationError(`Failed to render React component: ${msg}`);
+    const safeMsg = process.env.NODE_ENV === 'production'
+      ? 'Failed to render React component'
+      : `Failed to render React component: ${msg}`;
+    throw new ValidationError(safeMsg);
   }
 }

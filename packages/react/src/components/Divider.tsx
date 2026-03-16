@@ -24,9 +24,12 @@ export const Divider: React.FC<DividerProps> = ({
   className,
 }) => {
   return (
-    <div
+    <hr
+      role="separator"
+      aria-orientation="horizontal"
       className={className}
       style={{
+        border: "none",
         borderTop: `${thickness} solid ${color}`,
         marginTop: spacing,
         marginBottom: spacing,

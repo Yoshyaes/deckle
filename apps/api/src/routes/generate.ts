@@ -30,9 +30,12 @@ const formatSchema = z.union([
   z.object({ width: z.string(), height: z.string() }),
 ]);
 
+const MAX_HTML_SIZE = 5_242_880; // 5MB
+const MAX_REACT_SIZE = 5_242_880; // 5MB
+
 const generateSchema = z.object({
-  html: z.string().optional(),
-  react: z.string().optional(),
+  html: z.string().max(MAX_HTML_SIZE).optional(),
+  react: z.string().max(MAX_REACT_SIZE).optional(),
   template: z.string().optional(),
   data: z.record(z.unknown()).optional(),
   styles: z.string().optional(),

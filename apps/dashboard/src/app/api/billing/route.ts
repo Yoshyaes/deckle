@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
 async function getFirstApiKey(userId: string): Promise<string | null> {
   // In dev mode, use the bypass key
-  if (process.env.DOCUFORGE_DEV_BYPASS === 'true') {
+  if (process.env.DOCUFORGE_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'production') {
     return 'df_live_dev_bypass';
   }
 

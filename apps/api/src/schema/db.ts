@@ -90,6 +90,7 @@ export const generations = pgTable('generations', {
 }, (table) => ({
   userIdIdx: index('generations_user_id_idx').on(table.userId),
   createdAtIdx: index('generations_created_at_idx').on(table.createdAt),
+  statusIdx: index('generations_status_idx').on(table.status),
 }));
 
 export const usageDaily = pgTable(
@@ -139,6 +140,7 @@ export const stripeSubscriptions = pgTable('stripe_subscriptions', {
 }, (table) => ({
   userIdIdx: index('stripe_subs_user_id_idx').on(table.userId),
   stripeSubIdIdx: index('stripe_subs_stripe_id_idx').on(table.stripeSubscriptionId),
+  statusIdx: index('stripe_subs_status_idx').on(table.status),
 }));
 
 // --- Custom fonts table ---

@@ -1,0 +1,148 @@
+---
+title: Integrations API
+description: Endpoints for Zapier, Make, and n8n integrations.
+---
+
+# Integrations
+
+Endpoints designed for no-code automation platforms like Zapier, Make (Integromat), and n8n. These provide polling triggers and simplified actions for building PDF workflows without writing code.
+
+---
+
+## Test Authentication
+
+`GET https://api.getdocuforge.dev/v1/integrations/auth/test`
+
+Verify that an API key is valid. Used during Zapier/Make connection setup.
+
+### Response
+
+```json
+{
+  "authenticated": true,
+  "email": "user@example.com",
+  "plan": "pro"
+}
+```
+
+---
+
+## Trigger: New Generation
+
+`GET https://api.getdocuforge.dev/v1/integrations/triggers/new-generation`
+
+Polling trigger that returns the most recent PDF generations. Automation platforms call this periodically to detect new items.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | `10` | Number of results to return (max 100) |
+
+### Response
+
+```json
+[
+  {
+    "id": "gen_abc123",
+    "template_id": "tmpl_xyz789",
+    "input_type": "template",
+    "status": "completed",
+    "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf",
+    "pages": 3,
+    "file_size": 45230,
+    "generation_time_ms": 1840,
+    "error": null,
+    "created_at": "2026-03-15T10:30:00.000Z"
+  }
+]
+```
+
+---
+
+## Trigger: New Template
+
+`GET https://api.getdocuforge.dev/v1/integrations/triggers/new-template`
+
+Polling trigger that returns the most recent templates.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | `10` | Number of results to return (max 100) |
+
+### Response
+
+```json
+[
+  {
+    "id": "tmpl_abc123",
+    "name": "Invoice",
+    "version": 3,
+    "is_public": false,
+    "created_at": "2026-03-10T08:00:00.000Z",
+    "updated_at": "2026-03-14T15:20:00.000Z"
+  }
+]
+```
+
+---
+
+## Action: Generate PDF
+
+`POST https://api.getdocuforge.dev/v1/integrations/actions/generate`
+
+Simplified PDF generation action with flat parameters (no nested `options` object). Designed for easy mapping in automation builders.
+
+### Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `html` | string | * | Raw HTML to convert to PDF |
+| `template_id` | string | * | Template ID (`tmpl_xxx`) |
+| `data` | object | No | Data to merge into template variables |
+| `format` | string | No | `"A4"` (default), `"Letter"`, or `"Legal"` |
+| `orientation` | string | No | `"portrait"` (default) or `"landscape"` |
+
+\* Either `html` or `template_id` is required.
+
+### Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/integrations/actions/generate \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "template_id": "tmpl_abc123",
+    "data": {
+      "company": "Acme Corp",
+      "total": 1500
+    },
+    "format": "A4"
+  }'
+```
+
+### Response
+
+```json
+{
+  "id": "gen_abc123",
+  "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf",
+  "pages": 2,
+  "file_size": 45230
+}
+```
+
+## Errors
+
+All integration endpoints return the same error codes:
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid request body or missing required fields |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 403 | `USAGE_LIMIT_EXCEEDED` | Monthly PDF limit reached (generate action only) |
+| 404 | `NOT_FOUND` | Template not found (generate action only) |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error |

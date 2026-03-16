@@ -2,6 +2,7 @@
  * BullMQ-based job queue for async/batch PDF generation.
  */
 import { Queue, Worker, Job } from 'bullmq';
+import { logger } from '../lib/logger.js';
 import { db } from '../lib/db.js';
 import { generations, templates } from '../schema/db.js';
 import { renderPdf } from './renderer.js';
@@ -189,10 +190,10 @@ export function startWorker() {
   );
 
   worker.on('failed', (job, err) => {
-    console.error(`Job ${job?.id} failed:`, err.message);
+    logger.error({ jobId: job?.id, err: err.message }, `Job ${job?.id} failed`);
   });
 
-  console.log('PDF generation worker started');
+  logger.info('PDF generation worker started');
 }
 
 export function stopWorker() {

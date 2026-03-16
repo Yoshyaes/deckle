@@ -1,0 +1,109 @@
+---
+title: POST /v1/generate/batch
+description: Submit multiple PDF generation jobs for async processing.
+---
+
+# Batch Generation
+
+`POST https://api.getdocuforge.dev/v1/generate/batch`
+
+Submit up to 100 PDF generation jobs at once. Jobs are processed asynchronously via a background queue. Returns `202 Accepted` with a batch ID and individual generation IDs that you can poll for status.
+
+## Request Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | `Bearer df_live_sk_...` |
+| `Content-Type` | Yes | `application/json` |
+| `Idempotency-Key` | No | Unique key to prevent duplicate batch submissions. Cached for 24 hours. |
+
+## Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `items` | object[] | Yes | Array of generation jobs (1-100 items) |
+| `webhook` | string | No | URL to POST when the final job in the batch completes |
+
+### Item Object
+
+Each item accepts the same parameters as a single `/v1/generate` call:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `html` | string | * | Raw HTML to convert to PDF |
+| `react` | string | * | JSX/TSX source code |
+| `template` | string | * | Template ID (`tmpl_xxx`) |
+| `data` | object | No | Data to merge into template variables |
+| `styles` | string | No | Additional CSS styles |
+| `options` | object | No | PDF rendering options (format, margin, orientation, header, footer, printBackground) |
+| `output` | string | No | `"url"` (default) or `"base64"` |
+
+\* Each item must include at least one of `html`, `react`, or `template`.
+
+### Options Object
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string or object | `"A4"` | `"A4"`, `"Letter"`, `"Legal"`, or `{ width, height }` |
+| `margin` | string or object | — | Uniform margin string or `{ top, right, bottom, left }` |
+| `orientation` | string | `"portrait"` | `"portrait"` or `"landscape"` |
+| `header` | string | — | HTML for page header |
+| `footer` | string | — | HTML for page footer |
+| `printBackground` | boolean | — | Include background colors/images |
+
+## Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/generate/batch \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: batch-invoice-run-2026-03" \
+  -d '{
+    "items": [
+      {
+        "template": "tmpl_abc123",
+        "data": { "company": "Acme Corp", "total": 1500 }
+      },
+      {
+        "template": "tmpl_abc123",
+        "data": { "company": "Globex Inc", "total": 2300 }
+      },
+      {
+        "html": "<h1>Custom Report</h1><p>Summary data here.</p>",
+        "options": { "format": "Letter", "orientation": "landscape" }
+      }
+    ],
+    "webhook": "https://example.com/webhooks/batch-complete"
+  }'
+```
+
+## Response — `202 Accepted`
+
+```json
+{
+  "batch_id": "batch_a1b2c3d4e5f6g7h8",
+  "total": 3,
+  "generations": [
+    { "id": "gen_abc123", "index": 0 },
+    { "id": "gen_def456", "index": 1 },
+    { "id": "gen_ghi789", "index": 2 }
+  ],
+  "status": "queued"
+}
+```
+
+Use the individual generation IDs with `GET /v1/generations/:id` to check the status of each job.
+
+## Idempotency
+
+Pass an `Idempotency-Key` header with a unique string to safely retry failed requests. If a batch with the same key was already submitted within 24 hours, the original response is returned without creating duplicate jobs.
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid items array (empty, over 100, or missing input) |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 403 | `USAGE_LIMIT_EXCEEDED` | Monthly PDF limit reached |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error creating batch |

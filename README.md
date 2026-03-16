@@ -90,7 +90,7 @@ npm install docuforge
 pip install docuforge
 ```
 
-See the [SDK documentation](https://docs.getdocuforge.dev/quickstart) for full usage details.
+See the [SDK documentation](https://fred-7da601c6.mintlify.app/quickstart) for full usage details.
 
 ## Deployment
 

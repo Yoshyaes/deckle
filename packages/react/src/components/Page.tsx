@@ -52,7 +52,9 @@ export const Page: React.FC<PageProps> = ({
     orientation === "portrait" ? dimensions.height : dimensions.width;
 
   return (
-    <div
+    <section
+      role="region"
+      aria-label={`Page`}
       className={className}
       style={{
         width,
@@ -68,6 +70,6 @@ export const Page: React.FC<PageProps> = ({
       }}
     >
       {children}
-    </div>
+    </section>
   );
 };

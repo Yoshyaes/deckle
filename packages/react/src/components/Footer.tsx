@@ -18,7 +18,8 @@ export interface FooterProps {
  */
 export const Footer: React.FC<FooterProps> = ({ children, style, className }) => {
   return (
-    <div
+    <footer
+      role="contentinfo"
       className={className}
       style={{
         position: "absolute",
@@ -33,6 +34,6 @@ export const Footer: React.FC<FooterProps> = ({ children, style, className }) =>
       }}
     >
       {children}
-    </div>
+    </footer>
   );
 };

@@ -144,7 +144,7 @@ export function Sidebar({ usageCount = 0, usageLimit = 1000, isAdmin = false }: 
 }
 
 function DevOrClerkUser() {
-  if (process.env.NEXT_PUBLIC_DEV_BYPASS === 'true' || process.env.DOCUFORGE_DEV_BYPASS === 'true') {
+  if ((process.env.NEXT_PUBLIC_DEV_BYPASS === 'true' || process.env.DOCUFORGE_DEV_BYPASS === 'true') && process.env.NODE_ENV !== 'production') {
     return (
       <div className="flex items-center gap-2">
         <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-xs font-bold text-accent">

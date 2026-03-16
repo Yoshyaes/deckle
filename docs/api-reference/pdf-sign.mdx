@@ -1,0 +1,74 @@
+---
+title: POST /v1/pdf/sign
+description: Add a visual digital signature to a PDF document.
+---
+
+# Sign PDF
+
+`POST https://api.getdocuforge.dev/v1/pdf/sign`
+
+Add a visual digital signature annotation to a PDF document.
+
+## Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pdf` | string | Yes | Base64-encoded PDF document |
+| `name` | string | Yes | Signer name |
+| `reason` | string | No | Reason for signing |
+| `location` | string | No | Location of signing |
+| `contact` | string | No | Signer contact information |
+| `page` | integer | No | Page number for the signature (0-indexed) |
+| `x` | number | No | X coordinate for signature placement |
+| `y` | number | No | Y coordinate for signature placement |
+| `width` | number | No | Width of the signature box |
+| `height` | number | No | Height of the signature box |
+| `output` | string | No | `"url"` (default) or `"base64"` |
+
+## Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/pdf/sign \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdf": "<base64-encoded-pdf>",
+    "name": "Jane Doe",
+    "reason": "Contract approval",
+    "location": "San Francisco, CA",
+    "page": 0,
+    "x": 350,
+    "y": 50,
+    "width": 200,
+    "height": 60
+  }'
+```
+
+## Response (URL mode)
+
+```json
+{
+  "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf",
+  "file_size": 48200,
+  "signed": true
+}
+```
+
+## Response (base64 mode)
+
+```json
+{
+  "data": "<base64-encoded-signed-pdf>",
+  "file_size": 48200,
+  "signed": true
+}
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Missing signer name or PDF exceeds size limit |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error during signing |

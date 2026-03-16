@@ -1,0 +1,75 @@
+---
+title: POST /v1/pdf/protect
+description: Add password protection to a PDF document.
+---
+
+# Protect PDF
+
+`POST https://api.getdocuforge.dev/v1/pdf/protect`
+
+Add password protection and permission controls to a PDF document.
+
+## Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pdf` | string | Yes | Base64-encoded PDF document |
+| `owner_password` | string | Yes | Owner password (grants full access) |
+| `user_password` | string | No | User password (required to open the document) |
+| `permissions` | object | No | Permission flags (see below) |
+| `output` | string | No | `"url"` (default) or `"base64"` |
+
+### Permissions
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `printing` | boolean | `true` | Allow printing the document |
+| `copying` | boolean | `false` | Allow copying text and images |
+| `modifying` | boolean | `false` | Allow modifying the document |
+
+## Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/pdf/protect \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdf": "<base64-encoded-pdf>",
+    "owner_password": "owner-secret-123",
+    "user_password": "open-me-456",
+    "permissions": {
+      "printing": true,
+      "copying": false,
+      "modifying": false
+    }
+  }'
+```
+
+## Response (URL mode)
+
+```json
+{
+  "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf",
+  "file_size": 52400,
+  "protected": true
+}
+```
+
+## Response (base64 mode)
+
+```json
+{
+  "data": "<base64-encoded-protected-pdf>",
+  "file_size": 52400,
+  "protected": true
+}
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Missing owner password or PDF exceeds size limit |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error during protection |

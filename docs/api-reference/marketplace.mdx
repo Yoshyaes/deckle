@@ -1,0 +1,151 @@
+---
+title: Marketplace API
+description: Browse, clone, publish, and unpublish community templates.
+---
+
+# Marketplace
+
+The template marketplace lets users share and discover community-created PDF templates.
+
+---
+
+## Browse Templates
+
+`GET https://api.getdocuforge.dev/v1/marketplace`
+
+List public templates available in the marketplace.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | `20` | Number of results to return (max 100) |
+| `offset` | integer | `0` | Number of results to skip (for pagination) |
+| `category` | string | — | Filter by template category |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "tmpl_abc123",
+      "name": "Professional Invoice",
+      "version": 2,
+      "created_at": "2026-02-10T08:00:00.000Z",
+      "updated_at": "2026-03-01T12:00:00.000Z"
+    }
+  ],
+  "has_more": true
+}
+```
+
+---
+
+## Get Template Details
+
+`GET https://api.getdocuforge.dev/v1/marketplace/:id`
+
+Get the full details of a public marketplace template, including its HTML content and schema.
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Template ID (`tmpl_xxx`) |
+
+### Response
+
+```json
+{
+  "id": "tmpl_abc123",
+  "name": "Professional Invoice",
+  "html_content": "<h1>Invoice for {{company}}</h1>...",
+  "schema": { "company": "string", "total": "number" },
+  "version": 2,
+  "created_at": "2026-02-10T08:00:00.000Z",
+  "updated_at": "2026-03-01T12:00:00.000Z"
+}
+```
+
+---
+
+## Clone Template
+
+`POST https://api.getdocuforge.dev/v1/marketplace/:id/clone`
+
+Clone a public marketplace template into your own account. The cloned template is private by default.
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Template ID to clone (`tmpl_xxx`) |
+
+### Response — `201 Created`
+
+```json
+{
+  "id": "tmpl_new456",
+  "name": "Professional Invoice (copy)",
+  "version": 1,
+  "created_at": "2026-03-15T10:30:00.000Z"
+}
+```
+
+---
+
+## Publish Template
+
+`POST https://api.getdocuforge.dev/v1/marketplace/:id/publish`
+
+Publish one of your own templates to the marketplace, making it visible to all users.
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Your template ID (`tmpl_xxx`) |
+
+### Response
+
+```json
+{
+  "id": "tmpl_abc123",
+  "name": "Professional Invoice",
+  "is_public": true
+}
+```
+
+---
+
+## Unpublish Template
+
+`POST https://api.getdocuforge.dev/v1/marketplace/:id/unpublish`
+
+Remove one of your templates from the marketplace. The template remains in your account but is no longer publicly visible.
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Your template ID (`tmpl_xxx`) |
+
+### Response
+
+```json
+{
+  "id": "tmpl_abc123",
+  "name": "Professional Invoice",
+  "is_public": false
+}
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 404 | `NOT_FOUND` | Template not found or not public |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error |

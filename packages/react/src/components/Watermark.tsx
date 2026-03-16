@@ -36,6 +36,8 @@ export const Watermark: React.FC<WatermarkProps> = ({
 }) => {
   return (
     <div
+      role="presentation"
+      aria-hidden="true"
       className={className}
       style={{
         position: "absolute",

@@ -1,0 +1,90 @@
+---
+title: POST /v1/ai/generate-template
+description: Generate a PDF template using AI from a natural language description.
+---
+
+# AI Template Generation
+
+`POST https://api.getdocuforge.dev/v1/ai/generate-template`
+
+Generate a complete HTML template from a natural language description using AI. The response includes ready-to-use HTML with Handlebars variables that you can save as a template or use directly with `/v1/generate`.
+
+Requires the `ANTHROPIC_API_KEY` environment variable to be configured on the server.
+
+## Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `prompt` | string | Yes | Description of the template you want (1-2000 characters) |
+| `type` | string | No | Template type: `"invoice"`, `"receipt"`, `"report"`, `"certificate"`, `"letter"`, `"resume"`, or `"other"` (default) |
+| `style` | string | No | Visual style: `"professional"` (default), `"modern"`, `"minimal"`, or `"colorful"` |
+| `variables` | string[] | No | Handlebars variable names to include in the generated template |
+
+## Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/ai/generate-template \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "A professional invoice for a freelance web developer with hourly billing, tax calculation, and payment terms",
+    "type": "invoice",
+    "style": "modern",
+    "variables": ["company_name", "client_name", "items", "tax_rate", "due_date"]
+  }'
+```
+
+## Response
+
+```json
+{
+  "html": "<!DOCTYPE html><html>...<h1>Invoice for {{client_name}}</h1>...</html>",
+  "variables": ["company_name", "client_name", "items", "tax_rate", "due_date", "subtotal", "total"],
+  "type": "invoice",
+  "style": "modern"
+}
+```
+
+The `variables` array in the response includes all Handlebars variables detected in the generated HTML, which may include additional variables beyond those you requested.
+
+## Using the Generated Template
+
+Save the generated HTML as a reusable template:
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/templates \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Freelance Invoice",
+    "html_content": "<the generated HTML>",
+    "schema": {
+      "company_name": "string",
+      "client_name": "string",
+      "items": "array",
+      "tax_rate": "number",
+      "due_date": "string"
+    }
+  }'
+```
+
+Or generate a PDF directly:
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/generate \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "html": "<the generated HTML>"
+  }'
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid request body or prompt too long |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 502 | `AI_ERROR` | AI provider returned an error |
+| 503 | `AI_NOT_CONFIGURED` | `ANTHROPIC_API_KEY` is not set on the server |

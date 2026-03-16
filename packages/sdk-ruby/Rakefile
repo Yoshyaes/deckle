@@ -1,0 +1,13 @@
+# frozen_string_literal: true
+
+require "bundler/gem_tasks"
+
+desc "Validate Ruby syntax"
+task :validate do
+  Dir["lib/**/*.rb"].each do |file|
+    sh "ruby -c #{file}"
+  end
+end
+
+desc "Pre-publish checks"
+task prepublish: [:validate, :build]

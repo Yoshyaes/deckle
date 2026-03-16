@@ -14,6 +14,8 @@ import QRCode from 'qrcode';
 /**
  * Replace all {{qr:...}} placeholders with inline QR code data URIs.
  */
+const MAX_BARCODE_DATA_LENGTH = 2048;
+
 async function replaceQrCodes(html: string): Promise<string> {
   const qrPattern = /\{\{qr:([^}]+)\}\}/g;
   const matches = [...html.matchAll(qrPattern)];
@@ -23,6 +25,10 @@ async function replaceQrCodes(html: string): Promise<string> {
   let result = html;
   for (const match of matches) {
     const [full, data] = match;
+    if (data.trim().length > MAX_BARCODE_DATA_LENGTH) {
+      result = result.replace(full, `<span style="color:red;font-size:10px">[QR data too long]</span>`);
+      continue;
+    }
     try {
       const svg = await QRCode.toString(data.trim(), {
         type: 'svg',
@@ -48,6 +54,9 @@ function replaceBarcodesSync(html: string): string {
 
   return html.replace(barcodePattern, (_match, data: string) => {
     const value = data.trim();
+    if (value.length > MAX_BARCODE_DATA_LENGTH) {
+      return `<span style="color:red;font-size:10px">[Barcode data too long]</span>`;
+    }
     // Generate a simple visual barcode using CSS bars
     const bars = value
       .split('')

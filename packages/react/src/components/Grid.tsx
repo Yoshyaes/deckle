@@ -28,6 +28,7 @@ export const Grid: React.FC<GridProps> = ({
 }) => {
   return (
     <div
+      role="group"
       className={className}
       style={{
         display: "grid",

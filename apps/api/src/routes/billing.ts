@@ -82,14 +82,16 @@ billingWebhookApp.post('/', async (c) => {
   try {
     event = constructWebhookEvent(rawBody, signature);
   } catch (err) {
-    console.error('Stripe webhook signature verification failed:', err);
+    const { logger } = await import('../lib/logger.js');
+    logger.error({ err }, 'Stripe webhook signature verification failed');
     return c.json({ error: { code: 'BAD_REQUEST', message: 'Invalid signature' } }, 400);
   }
 
   try {
     await handleWebhookEvent(event);
   } catch (err) {
-    console.error('Error handling Stripe webhook:', err);
+    const { logger: log } = await import('../lib/logger.js');
+    log.error({ err }, 'Error handling Stripe webhook');
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Webhook processing failed' } }, 500);
   }
 

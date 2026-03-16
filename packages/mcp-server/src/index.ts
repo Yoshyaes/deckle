@@ -298,6 +298,13 @@ async function main() {
     process.exit(1);
   }
 
+  // Startup health check to verify connectivity
+  try {
+    await apiRequest('GET', '/health');
+  } catch (err) {
+    console.warn(`Warning: DocuForge API health check failed (${(err as Error).message}). Continuing anyway — the API may not be reachable yet.`);
+  }
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

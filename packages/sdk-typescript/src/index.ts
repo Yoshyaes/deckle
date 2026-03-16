@@ -19,64 +19,100 @@ export class DocuForge {
   #apiKey: string;
   private baseUrl: string;
   private timeout: number;
+  private maxRetries: number;
 
   constructor(apiKey: string, options?: DocuForgeOptions) {
     if (!apiKey) throw new Error('DocuForge API key is required');
     this.#apiKey = apiKey;
     this.baseUrl = (options?.baseUrl ?? 'https://api.getdocuforge.dev').replace(/\/$/, '');
     this.timeout = options?.timeout ?? 30000;
+    this.maxRetries = options?.maxRetries ?? 3;
   }
 
+  /** Status codes that are safe to retry. */
+  private static readonly RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeout);
+    let lastError: unknown;
 
-    try {
-      let res: Response;
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeout);
+
       try {
-        res = await fetch(`${this.baseUrl}${path}`, {
-          method,
-          headers: {
-            Authorization: `Bearer ${this.#apiKey}`,
-            'Content-Type': 'application/json',
-            'User-Agent': 'docuforge-node/0.1.0',
-          },
-          body: body ? JSON.stringify(body) : undefined,
-          signal: controller.signal,
-        });
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
-          throw new DocuForgeError('Request timed out', 0, 'TIMEOUT');
+        let res: Response;
+        try {
+          res = await fetch(`${this.baseUrl}${path}`, {
+            method,
+            headers: {
+              Authorization: `Bearer ${this.#apiKey}`,
+              'Content-Type': 'application/json',
+              'User-Agent': 'docuforge-node/0.1.0',
+            },
+            body: body ? JSON.stringify(body) : undefined,
+            signal: controller.signal,
+          });
+        } catch (err: any) {
+          if (err?.name === 'AbortError') {
+            throw new DocuForgeError('Request timed out', 0, 'TIMEOUT');
+          }
+          throw err;
         }
-        throw err;
-      }
 
-      let data: any;
-      try {
-        data = await res.json();
-      } catch {
-        throw new DocuForgeError(`Non-JSON response from API (status ${res.status})`, res.status, 'INVALID_RESPONSE');
-      }
+        let data: any;
+        try {
+          data = await res.json();
+        } catch {
+          throw new DocuForgeError(`Non-JSON response from API (status ${res.status})`, res.status, 'INVALID_RESPONSE');
+        }
 
-      if (!res.ok) {
-        if (res.status === 401) throw new AuthenticationError(data?.error?.message);
-        if (res.status === 429) {
-          throw new RateLimitError(
-            parseInt(res.headers.get('Retry-After') || '1'),
-            data?.error?.message,
+        if (!res.ok) {
+          // Retry on retryable status codes (unless we've exhausted attempts)
+          if (DocuForge.RETRYABLE_STATUS_CODES.has(res.status) && attempt < this.maxRetries) {
+            let delay: number;
+            if (res.status === 429) {
+              const retryAfterHeader = res.headers.get('Retry-After');
+              delay = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : 1000 * Math.pow(2, attempt);
+            } else {
+              delay = 1000 * Math.pow(2, attempt);
+            }
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+
+          if (res.status === 401) throw new AuthenticationError(data?.error?.message);
+          if (res.status === 429) {
+            throw new RateLimitError(
+              parseInt(res.headers.get('Retry-After') || '1'),
+              data?.error?.message,
+            );
+          }
+          throw new DocuForgeError(
+            data?.error?.message || 'Request failed',
+            res.status,
+            data?.error?.code || 'UNKNOWN',
           );
         }
-        throw new DocuForgeError(
-          data?.error?.message || 'Request failed',
-          res.status,
-          data?.error?.code || 'UNKNOWN',
-        );
-      }
 
-      return data as T;
-    } finally {
-      clearTimeout(timer);
+        return data as T;
+      } catch (err) {
+        lastError = err;
+        // Don't retry non-retryable errors
+        if (err instanceof DocuForgeError || err instanceof AuthenticationError || err instanceof RateLimitError) {
+          throw err;
+        }
+        // Retry network errors
+        if (attempt < this.maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+          continue;
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
     }
+
+    throw lastError;
   }
 
   /**

@@ -472,7 +472,7 @@ The `@admin.action` decorator (available in Django 3.2 and later) registers the 
 
 This tutorial covered the core patterns for integrating DocuForge into a Django application -- function-based views, template-based downloads, DRF integration, class-based views, and admin actions. From here you can explore several directions:
 
-- **FastAPI integration** -- If parts of your system use FastAPI, the SDK works identically. See our [FastAPI tutorial](/blog/pdf-generation-python-fastapi-docuforge) for async patterns and Pydantic model examples.
-- **Comparing rendering approaches** -- If you are evaluating DocuForge against Puppeteer or WeasyPrint, the [DocuForge vs Puppeteer](/blog/docuforge-vs-puppeteer-why-i-switched) article breaks down the trade-offs in performance, accuracy, and operational overhead.
-- **Page layout control** -- Our [page layout guide](/blog/pdf-page-breaks-headers-footers-guide) covers headers, footers, page numbers, and multi-column layouts in detail.
+- **FastAPI integration** -- If parts of your system use FastAPI, the SDK works identically. See our [FastAPI tutorial](https://getdocuforge.dev/blog/pdf-generation-python-fastapi-docuforge) for async patterns and Pydantic model examples.
+- **Comparing rendering approaches** -- If you are evaluating DocuForge against Puppeteer or WeasyPrint, the [DocuForge vs Puppeteer](https://getdocuforge.dev/blog/docuforge-vs-puppeteer-why-i-switched) article breaks down the trade-offs in performance, accuracy, and operational overhead.
+- **Page layout control** -- Our [page layout guide](https://getdocuforge.dev/blog/pdf-page-breaks-headers-footers-guide) covers headers, footers, page numbers, and multi-column layouts in detail.
 - **Batch processing** -- The `df.batch()` method is ideal for scheduled jobs like monthly invoice runs. Pair it with Django management commands or Celery tasks for fully automated PDF pipelines.

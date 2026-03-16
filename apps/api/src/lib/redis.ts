@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import { logger } from './logger.js';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -11,14 +12,14 @@ export const redis = new Redis(REDIS_URL, {
 });
 
 redis.on('error', (err) => {
-  console.error('Redis connection error:', err.message);
+  logger.error({ err: err.message }, 'Redis connection error');
 });
 
 export async function connectRedis(): Promise<void> {
   try {
     await redis.ping();
-    console.log('Redis connected');
+    logger.info('Redis connected');
   } catch (err) {
-    console.error('Redis connection failed:', err);
+    logger.error({ err }, 'Redis connection failed');
   }
 }

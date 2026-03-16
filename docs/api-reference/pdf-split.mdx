@@ -1,0 +1,72 @@
+---
+title: POST /v1/pdf/split
+description: Split a PDF into multiple documents by page ranges.
+---
+
+# Split PDF
+
+`POST https://api.getdocuforge.dev/v1/pdf/split`
+
+Split a single PDF into multiple documents based on page ranges.
+
+## Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pdf` | string | Yes | Base64-encoded PDF document |
+| `ranges` | number[][] | No | Array of page ranges. Each range is `[start]` or `[start, end]` (1-indexed, inclusive). If omitted, splits into individual pages. |
+| `output` | string | No | `"url"` (default) or `"base64"` |
+
+### Range Examples
+
+| Range | Result |
+|-------|--------|
+| `[1]` | Page 1 only |
+| `[1, 3]` | Pages 1 through 3 |
+| `[[1, 2], [5, 8]]` | Two documents: pages 1-2 and pages 5-8 |
+
+## Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/pdf/split \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdf": "<base64-encoded-pdf>",
+    "ranges": [[1, 3], [4, 6]],
+    "output": "url"
+  }'
+```
+
+## Response (URL mode)
+
+```json
+{
+  "parts": [
+    { "url": "https://cdn.getdocuforge.dev/gen_abc123.pdf", "file_size": 45230 },
+    { "url": "https://cdn.getdocuforge.dev/gen_def456.pdf", "file_size": 32100 }
+  ],
+  "total": 2
+}
+```
+
+## Response (base64 mode)
+
+```json
+{
+  "parts": [
+    { "data": "<base64-encoded-pdf>", "file_size": 45230 },
+    { "data": "<base64-encoded-pdf>", "file_size": 32100 }
+  ],
+  "total": 2
+}
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid ranges or PDF exceeds size limit |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error during split |

@@ -7,6 +7,7 @@ import { generationQueue } from '../services/queue.js';
 import { checkUsageLimit } from '../services/usage.js';
 import { ValidationError, UsageLimitError } from '../lib/errors.js';
 import { nanoid } from 'nanoid';
+import { redis } from '../lib/redis.js';
 
 const marginSchema = z.union([
   z.string(),
@@ -54,6 +55,20 @@ const app = new Hono();
  * Submit multiple PDF generation jobs to the async queue.
  */
 app.post('/', async (c) => {
+  // Idempotency key support — return cached response if key seen within 24h
+  const idempotencyKey = c.req.header('Idempotency-Key');
+  if (idempotencyKey) {
+    const cacheKey = `idempotency:batch:${idempotencyKey}`;
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return c.json(JSON.parse(cached as string), 202);
+      }
+    } catch {
+      // Ignore Redis errors for idempotency — proceed with new request
+    }
+  }
+
   const body = await c.req.json();
   const parsed = batchSchema.safeParse(body);
 
@@ -111,15 +126,24 @@ app.post('/', async (c) => {
     results.push({ id: generationId, index: i });
   }
 
-  return c.json(
-    {
-      batch_id: batchId,
-      total: items.length,
-      generations: results,
-      status: 'queued',
-    },
-    202,
-  );
+  const responseBody = {
+    batch_id: batchId,
+    total: items.length,
+    generations: results,
+    status: 'queued',
+  };
+
+  // Cache response for idempotency key
+  if (idempotencyKey) {
+    const cacheKey = `idempotency:batch:${idempotencyKey}`;
+    try {
+      await redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 86400); // 24h TTL
+    } catch {
+      // Ignore Redis errors for idempotency caching
+    }
+  }
+
+  return c.json(responseBody, 202);
 });
 
 export default app;

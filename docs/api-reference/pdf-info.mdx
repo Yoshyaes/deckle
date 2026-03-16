@@ -1,0 +1,52 @@
+---
+title: POST /v1/pdf/info
+description: Get metadata and information about a PDF document.
+---
+
+# PDF Info
+
+`POST https://api.getdocuforge.dev/v1/pdf/info`
+
+Extract metadata from a PDF document including page count, title, author, and other properties.
+
+## Request Body
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pdf` | string | Yes | Base64-encoded PDF document |
+
+## Example
+
+```bash
+curl -X POST https://api.getdocuforge.dev/v1/pdf/info \
+  -H "Authorization: Bearer df_live_sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdf": "<base64-encoded-pdf>"
+  }'
+```
+
+## Response
+
+```json
+{
+  "pages": 5,
+  "title": "Quarterly Report",
+  "author": "Acme Corp",
+  "subject": "",
+  "creator": "DocuForge API",
+  "producer": "DocuForge",
+  "creation_date": "2026-03-01T12:00:00.000Z",
+  "modification_date": "2026-03-10T08:30:00.000Z",
+  "file_size": 245000
+}
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid or missing PDF, or PDF exceeds size limit |
+| 401 | `UNAUTHORIZED` | Invalid or missing API key |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 500 | `INTERNAL_ERROR` | Server error reading PDF |

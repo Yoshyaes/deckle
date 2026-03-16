@@ -30,3 +30,6 @@ export type { DividerProps } from "./components/Divider";
 
 export { PageNumber } from "./components/PageNumber";
 export type { PageNumberProps } from "./components/PageNumber";
+
+export { List } from "./components/List";
+export type { ListProps } from "./components/List";
