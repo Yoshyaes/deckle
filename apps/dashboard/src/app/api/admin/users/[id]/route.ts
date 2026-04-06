@@ -35,6 +35,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       pages: generations.pages,
       generationTimeMs: generations.generationTimeMs,
       fileSizeBytes: generations.fileSizeBytes,
+      error: generations.error,
       createdAt: generations.createdAt,
     })
       .from(generations)

@@ -20,6 +20,7 @@ export function GenerationsClient() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [userIdFilter, setUserIdFilter] = useState('');
   const [offset, setOffset] = useState(0);
   const limit = 50;
 
@@ -27,6 +28,7 @@ export function GenerationsClient() {
     setLoading(true);
     const params = new URLSearchParams();
     if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (userIdFilter) params.set('userId', userIdFilter);
     params.set('limit', String(limit));
     params.set('offset', String(offset));
 
@@ -41,7 +43,7 @@ export function GenerationsClient() {
 
   useEffect(() => {
     fetchGenerations();
-  }, [statusFilter, offset]);
+  }, [statusFilter, userIdFilter, offset]);
 
   return (
     <div>
@@ -58,6 +60,13 @@ export function GenerationsClient() {
           <option value="queued">Queued</option>
           <option value="processing">Processing</option>
         </select>
+        <input
+          type="text"
+          placeholder="Filter by User ID..."
+          value={userIdFilter}
+          onChange={(e) => { setUserIdFilter(e.target.value); setOffset(0); }}
+          className="px-3 py-2 rounded-lg bg-surface border border-border-subtle text-sm text-text-primary placeholder:text-text-dim focus:outline-none focus:border-accent w-64"
+        />
         <div className="text-xs text-text-dim self-center">{total} generations total</div>
       </div>
 
@@ -72,17 +81,18 @@ export function GenerationsClient() {
               <th className="text-left px-4 py-3 text-text-muted font-medium">Status</th>
               <th className="text-right px-4 py-3 text-text-muted font-medium">Pages</th>
               <th className="text-right px-4 py-3 text-text-muted font-medium">Time</th>
+              <th className="text-left px-4 py-3 text-text-muted font-medium">Error</th>
               <th className="text-left px-4 py-3 text-text-muted font-medium">Created</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-text-dim">Loading...</td>
+                <td colSpan={8} className="px-4 py-8 text-center text-text-dim">Loading...</td>
               </tr>
             ) : generations.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-text-dim">No generations found</td>
+                <td colSpan={8} className="px-4 py-8 text-center text-text-dim">No generations found</td>
               </tr>
             ) : (
               generations.map((g) => (
@@ -102,6 +112,9 @@ export function GenerationsClient() {
                   <td className="px-4 py-3 text-right text-text-muted">{g.pages ?? '—'}</td>
                   <td className="px-4 py-3 text-right text-text-muted">
                     {g.generation_time_ms ? `${(g.generation_time_ms / 1000).toFixed(1)}s` : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-red-400 text-xs max-w-[250px] truncate" title={g.error || ''}>
+                    {g.error || '—'}
                   </td>
                   <td className="px-4 py-3 text-text-dim text-xs">
                     {new Date(g.created_at).toLocaleString()}

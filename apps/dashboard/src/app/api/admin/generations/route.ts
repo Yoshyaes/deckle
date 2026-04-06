@@ -13,12 +13,16 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || '';
+  const userId = searchParams.get('userId') || '';
   const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
   const offset = parseInt(searchParams.get('offset') || '0');
 
   const conditions: any[] = [];
   if (status && status !== 'all') {
     conditions.push(eq(generations.status, status as any));
+  }
+  if (userId) {
+    conditions.push(sql`g.user_id = ${userId}`);
   }
 
   const whereClause = conditions.length > 0

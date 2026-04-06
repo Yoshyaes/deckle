@@ -20,6 +20,7 @@ interface UserDetail {
     pages: number | null;
     generationTimeMs: number | null;
     fileSizeBytes: number | null;
+    error: string | null;
     createdAt: string;
   }[];
   keys: {
@@ -56,12 +57,25 @@ function formatBytes(bytes: number): string {
 export function UserDetailClient({ userId }: { userId: string }) {
   const [data, setData] = useState<UserDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorBreakdown, setErrorBreakdown] = useState<{
+    error: string;
+    count: number;
+    percentage: number;
+    last_occurrence: string;
+  }[] | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     fetch(`/api/admin/users/${userId}`)
       .then((r) => r.json())
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        if (d?.usage?.failed > 0) {
+          fetch(`/api/admin/users/${userId}/errors`)
+            .then((r) => r.json())
+            .then((e) => setErrorBreakdown(e.data));
+        }
+      })
       .finally(() => setLoading(false));
   }, [userId]);
 
@@ -140,6 +154,41 @@ export function UserDetailClient({ userId }: { userId: string }) {
         <StatCard value={formatBytes(usage.totalBytes)} label="Storage Used" />
         <StatCard value={`${successRate}%`} label="Success Rate" />
       </div>
+
+      {/* Error Breakdown */}
+      {errorBreakdown && errorBreakdown.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-red-400 mb-3">
+            Error Breakdown ({errorBreakdown.reduce((s, e) => s + e.count, 0)} failures)
+          </h2>
+          <div className="rounded-lg border border-red-500/20 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border-subtle bg-surface">
+                  <th className="text-left px-4 py-2 text-text-muted font-medium">Error</th>
+                  <th className="text-right px-4 py-2 text-text-muted font-medium">Count</th>
+                  <th className="text-right px-4 py-2 text-text-muted font-medium">%</th>
+                  <th className="text-left px-4 py-2 text-text-muted font-medium">Last Seen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {errorBreakdown.map((e, i) => (
+                  <tr key={i} className="border-b border-border-subtle last:border-0">
+                    <td className="px-4 py-2 text-red-400 text-xs max-w-[400px]" title={e.error}>
+                      <span className="line-clamp-2">{e.error}</span>
+                    </td>
+                    <td className="px-4 py-2 text-right text-text-primary font-mono">{e.count}</td>
+                    <td className="px-4 py-2 text-right text-text-muted">{e.percentage}%</td>
+                    <td className="px-4 py-2 text-text-dim text-xs">
+                      {new Date(e.last_occurrence).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* API Keys */}
       <div className="mb-8">
@@ -225,6 +274,7 @@ export function UserDetailClient({ userId }: { userId: string }) {
                 <th className="text-left px-4 py-2 text-text-muted font-medium">Status</th>
                 <th className="text-right px-4 py-2 text-text-muted font-medium">Pages</th>
                 <th className="text-right px-4 py-2 text-text-muted font-medium">Time</th>
+                <th className="text-left px-4 py-2 text-text-muted font-medium">Error</th>
                 <th className="text-left px-4 py-2 text-text-muted font-medium">Created</th>
               </tr>
             </thead>
@@ -242,13 +292,16 @@ export function UserDetailClient({ userId }: { userId: string }) {
                   <td className="px-4 py-2 text-right text-text-muted">
                     {g.generationTimeMs ? `${(g.generationTimeMs / 1000).toFixed(1)}s` : '—'}
                   </td>
+                  <td className="px-4 py-2 text-red-400 text-xs max-w-[200px] truncate" title={g.error || ''}>
+                    {g.error || '—'}
+                  </td>
                   <td className="px-4 py-2 text-text-dim text-xs">
                     {new Date(g.createdAt).toLocaleString()}
                   </td>
                 </tr>
               ))}
               {generations.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-4 text-center text-text-dim">No generations</td></tr>
+                <tr><td colSpan={7} className="px-4 py-4 text-center text-text-dim">No generations</td></tr>
               )}
             </tbody>
           </table>
