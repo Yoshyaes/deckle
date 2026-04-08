@@ -3,6 +3,7 @@ import './lib/env.js';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { bodyLimit } from 'hono/body-limit';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { logger } from './lib/logger.js';
 
@@ -30,6 +31,10 @@ import billingRoutes, { billingWebhookApp } from './routes/billing.js';
 import fontsRoutes from './routes/fonts.js';
 import analyticsRoutes from './routes/analytics.js';
 import { startWorker, stopWorker } from './services/queue.js';
+import { starterTemplates } from './scripts/starter-templates.js';
+import { templates } from './schema/db.js';
+import { tmplId } from './lib/id.js';
+import { db } from './lib/db.js';
 
 const app = new Hono();
 
@@ -79,14 +84,13 @@ app.route('/v1/starter-templates', starterTemplatesRoutes);
 
 // Protected routes
 const v1 = new Hono();
-// Body size limit: 10MB
-v1.use('*', async (c, next) => {
-  const contentLength = c.req.header('content-length');
-  if (contentLength && parseInt(contentLength) > 10 * 1024 * 1024) {
-    return c.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body exceeds 10MB limit' } }, 413);
-  }
-  return next();
-});
+// Enforce 10MB body limit on the actual streamed body (not just Content-Length header,
+// which is client-controlled and can be spoofed).
+v1.use('*', bodyLimit({
+  maxSize: 10 * 1024 * 1024,
+  onError: (c) =>
+    c.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body exceeds 10MB limit' } }, 413),
+}));
 v1.use('*', authMiddleware);
 v1.use('*', rateLimitMiddleware);
 
@@ -106,16 +110,12 @@ v1.route('/analytics', analyticsRoutes);
 
 // Clone requires auth — mount under protected v1
 v1.post('/starter-templates/:slug/clone', async (c) => {
-  const { starterTemplates } = await import('./scripts/starter-templates.js');
-  const { templates } = await import('./schema/db.js');
-  const { tmplId } = await import('./lib/id.js');
   const slug = c.req.param('slug');
   const starter = starterTemplates.find((t) => t.slug === slug);
   if (!starter) {
     return c.json({ error: { code: 'NOT_FOUND', message: 'Starter template not found' } }, 404);
   }
   const user = c.get('user');
-  const { db } = await import('./lib/db.js');
   const id = tmplId();
   const [template] = await db
     .insert(templates)

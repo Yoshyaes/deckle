@@ -1,4 +1,5 @@
 import { chromium, Browser, BrowserContext } from 'playwright';
+import { PDFDocument } from 'pdf-lib';
 import { logger } from '../lib/logger.js';
 
 interface RenderOptions {
@@ -130,7 +131,10 @@ export async function renderPdf(html: string, options: RenderOptions = {}): Prom
   const page = await context.newPage();
 
   try {
-    await page.setContent(html, { waitUntil: 'networkidle' });
+    // JavaScript is disabled, so 'networkidle' would wait unnecessarily for
+    // network events that JS would normally trigger. 'load' is equivalent and
+    // avoids spurious timeouts on pages that reference external resources.
+    await page.setContent(html, { waitUntil: 'load' });
 
     const format = options.format || 'A4';
     const dimensions = typeof format === 'string' ? FORMAT_MAP[format] : format;
@@ -163,13 +167,20 @@ export async function renderPdf(html: string, options: RenderOptions = {}): Prom
 
     const buffer = await page.pdf(pdfOptions);
 
-    // Count pages by looking for PDF page markers
-    const pdfContent = buffer.toString('latin1');
-    const pageCount = (pdfContent.match(/\/Type\s*\/Page[^s]/g) || []).length;
+    // Use pdf-lib to count pages accurately. The previous regex approach
+    // (/\/Type\s*\/Page[^s]/) was fragile for linearised or compressed PDFs.
+    let pageCount = 1;
+    try {
+      const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+      pageCount = pdfDoc.getPageCount();
+    } catch {
+      // If pdf-lib can't parse it (unusual), fall back to 1 to avoid hard failure
+      logger.warn('pdf-lib could not count pages; defaulting to 1');
+    }
 
     return {
       buffer: Buffer.from(buffer),
-      pages: pageCount || 1,
+      pages: pageCount,
       fileSize: buffer.byteLength,
     };
   } finally {

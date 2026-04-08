@@ -2,13 +2,31 @@ import bcrypt from 'bcryptjs';
 import { db } from '../lib/db.js';
 import { apiKeys } from '../schema/db.js';
 import { apiKeyId } from '../lib/id.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
+import { AppError } from '../lib/errors.js';
+
+/** Maximum number of API keys a single user may hold. */
+const MAX_KEYS_PER_USER = 20;
 
 /**
  * Create a new API key for a user.
+ * Enforces a per-user cap to prevent bcrypt DoS via unbounded prefix collisions.
  * Returns the raw key (shown once to the user) and the DB record.
  */
 export async function createApiKey(userId: string, name = 'Default') {
+  // Enforce per-user key count limit
+  const [{ value: keyCount }] = await db
+    .select({ value: count() })
+    .from(apiKeys)
+    .where(eq(apiKeys.userId, userId));
+
+  if (keyCount >= MAX_KEYS_PER_USER) {
+    throw new AppError(
+      422,
+      'KEY_LIMIT_REACHED',
+      `You can have at most ${MAX_KEYS_PER_USER} API keys. Delete an existing key before creating a new one.`,
+    );
+  }
   const rawKey = apiKeyId();
   const keyHash = await bcrypt.hash(rawKey, 10);
   const keyPrefix = rawKey.slice(0, 16);

@@ -10,6 +10,7 @@
  *   {{barcode:1234567890128}}             → Code128 barcode
  */
 import QRCode from 'qrcode';
+import { escapeHtml } from '../lib/utils.js';
 
 /**
  * Replace all {{qr:...}} placeholders with inline QR code data URIs.
@@ -57,27 +58,7 @@ function replaceBarcodesSync(html: string): string {
     if (value.length > MAX_BARCODE_DATA_LENGTH) {
       return `<span style="color:red;font-size:10px">[Barcode data too long]</span>`;
     }
-    // Generate a simple visual barcode using CSS bars
-    const bars = value
-      .split('')
-      .map((char) => {
-        const code = char.charCodeAt(0);
-        const widths = [
-          (code % 3) + 1,
-          ((code >> 2) % 2) + 1,
-          ((code >> 4) % 3) + 1,
-          ((code >> 1) % 2) + 1,
-        ];
-        return widths
-          .map(
-            (w, i) =>
-              `<rect x="${0}" width="${w}" height="50" fill="${i % 2 === 0 ? '#000' : '#fff'}"/>`,
-          )
-          .join('');
-      })
-      .join('');
-
-    // Build a proper Code128-like SVG barcode
+    // Build a Code128-like SVG barcode
     let x = 10;
     const rects: string[] = [];
     // Start pattern
@@ -105,7 +86,7 @@ function replaceBarcodesSync(html: string): string {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} 70" width="${totalWidth}" height="70">
       <rect width="100%" height="100%" fill="white"/>
       ${rects.join('')}
-      <text x="${totalWidth / 2}" y="65" text-anchor="middle" font-family="monospace" font-size="10">${value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</text>
+      <text x="${totalWidth / 2}" y="65" text-anchor="middle" font-family="monospace" font-size="10">${escapeHtml(value)}</text>
     </svg>`;
   });
 }

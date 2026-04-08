@@ -63,7 +63,7 @@ Return ONLY the HTML code, no explanations.`;
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -77,8 +77,12 @@ Return ONLY the HTML code, no explanations.`;
     );
   }
 
-  const result = await response.json() as any;
-  const content = result.content?.[0]?.text || '';
+  interface AnthropicResponse {
+    content?: { type: string; text?: string }[];
+  }
+
+  const result: AnthropicResponse = await response.json();
+  const content = result.content?.find((b) => b.type === 'text')?.text || '';
 
   // Extract HTML from the response (in case it's wrapped in markdown code blocks)
   let html = content;

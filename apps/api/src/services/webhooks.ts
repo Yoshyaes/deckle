@@ -46,6 +46,11 @@ async function validateWebhookUrl(url: string): Promise<void> {
   const parsed = new URL(url);
   const hostname = parsed.hostname;
 
+  // Require HTTPS to protect payload confidentiality in transit
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Webhook URL must use HTTPS');
+  }
+
   // Block common internal hostnames
   if (['localhost', '0.0.0.0'].includes(hostname)) {
     throw new Error('Webhook URL cannot target localhost');
