@@ -4,7 +4,7 @@ import { db } from '../lib/db.js';
 import { generations } from '../schema/db.js';
 import { genId } from '../lib/id.js';
 import { generationQueue } from '../services/queue.js';
-import { checkUsageLimit } from '../services/usage.js';
+import { checkAndReserveUsage } from '../services/usage.js';
 import { ValidationError, UsageLimitError } from '../lib/errors.js';
 import { nanoid } from 'nanoid';
 import { redis } from '../lib/redis.js';
@@ -79,8 +79,10 @@ app.post('/', async (c) => {
   const { items, webhook } = parsed.data;
   const user = c.get('user');
 
-  // Check usage limit
-  const withinLimit = await checkUsageLimit(user.id, user.plan);
+  // Atomically check and reserve usage slots for the batch.
+  // We reserve one slot upfront to prevent concurrent batch submissions from
+  // all passing the limit check simultaneously.
+  const withinLimit = await checkAndReserveUsage(user.id, user.plan);
   if (!withinLimit) {
     throw new UsageLimitError();
   }
