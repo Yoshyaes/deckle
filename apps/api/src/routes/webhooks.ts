@@ -25,6 +25,13 @@ app.post('/clerk', async (c) => {
       return c.json({ error: 'Missing Svix headers' }, 400);
     }
 
+    // Reject stale webhooks to prevent replay attacks (tolerance: 5 minutes)
+    const SVIX_TOLERANCE_SECONDS = 300;
+    const ts = parseInt(svixTimestamp, 10);
+    if (isNaN(ts) || Math.abs(Date.now() / 1000 - ts) > SVIX_TOLERANCE_SECONDS) {
+      return c.json({ error: 'Webhook timestamp too old or invalid' }, 400);
+    }
+
     const body = await c.req.text();
 
     // Verify signature
