@@ -1,6 +1,7 @@
 import { Context, Next } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import bcrypt from 'bcryptjs';
+import { timingSafeEqual } from 'crypto';
 import { db } from '../lib/db.js';
 import { apiKeys, users } from '../schema/db.js';
 import { eq } from 'drizzle-orm';
@@ -23,7 +24,11 @@ export const authMiddleware = createMiddleware(async (c, next) => {
   // Service-to-service auth from dashboard playground
   const serviceSecret = c.req.header('X-Service-Secret');
   if (serviceSecret && process.env.DASHBOARD_SERVICE_SECRET) {
-    if (serviceSecret === process.env.DASHBOARD_SERVICE_SECRET) {
+    // Use timingSafeEqual to prevent timing-based secret recovery attacks
+    const a = Buffer.from(serviceSecret);
+    const b = Buffer.from(process.env.DASHBOARD_SERVICE_SECRET);
+    const secretsMatch = a.length === b.length && timingSafeEqual(a, b);
+    if (secretsMatch) {
       const serviceUserId = c.req.header('X-Service-User-Id');
       if (serviceUserId) {
         const [user] = await db
