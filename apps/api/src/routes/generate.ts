@@ -6,13 +6,13 @@ import { genId } from '../lib/id.js';
 import { renderPdf } from '../services/renderer.js';
 import { uploadPdf } from '../services/storage.js';
 import { mergeTemplate } from '../services/templates.js';
-import { checkUsageLimit, incrementUsage } from '../services/usage.js';
+import { checkAndReserveUsage, incrementUsage } from '../services/usage.js';
 import { ValidationError, NotFoundError, UsageLimitError } from '../lib/errors.js';
 import { deliverWebhook } from '../services/webhooks.js';
 import { renderReactToHtml } from '../services/react-renderer.js';
 import { processBarcodes } from '../services/barcodes.js';
 import { eq, and } from 'drizzle-orm';
-import { escapeHtml, sanitizeCssValue } from '../lib/utils.js';
+import { escapeHtml, sanitizeCssColor } from '../lib/utils.js';
 import { getFontCssForUser } from '../services/fonts.js';
 
 const marginSchema = z.union([
@@ -80,8 +80,10 @@ app.post('/', async (c) => {
     throw new ValidationError('One of "html", "react", or "template" must be provided');
   }
 
-  // Check usage limits
-  const withinLimit = await checkUsageLimit(user.id, user.plan);
+  // Atomically check and reserve a usage slot before rendering.
+  // Uses a Redis Lua script so check + increment is a single atomic operation,
+  // preventing concurrent requests from bypassing plan limits.
+  const withinLimit = await checkAndReserveUsage(user.id, user.plan);
   if (!withinLimit) {
     throw new UsageLimitError();
   }
@@ -114,19 +116,19 @@ app.post('/', async (c) => {
   } else if (react) {
     // React component mode
     inputType = 'react';
-    finalHtml = renderReactToHtml(react, data || {}, styles);
+    finalHtml = await renderReactToHtml(react, data || {}, styles);
   } else {
     finalHtml = html!;
   }
 
   // Inject watermark overlay if requested
   if (watermark?.text) {
-    const wColor = watermark.color || 'rgba(0,0,0,0.08)';
     const wOpacity = watermark.opacity ?? 0.08;
     const wAngle = watermark.angle ?? -45;
     const wSize = watermark.fontSize ?? 72;
     const safeText = escapeHtml(watermark.text);
-    const safeColor = sanitizeCssValue(wColor);
+    // Use allowlist-based color sanitizer to prevent CSS injection
+    const safeColor = sanitizeCssColor(watermark.color || 'rgba(0,0,0,0.08)');
     const watermarkHtml = `<div style="position:fixed;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:9999"><span style="font-size:${wSize}px;color:${safeColor};opacity:${wOpacity};transform:rotate(${wAngle}deg);white-space:nowrap;font-family:Arial,sans-serif;font-weight:bold;user-select:none">${safeText}</span></div>`;
     finalHtml = finalHtml.replace(/<\/body>/i, `${watermarkHtml}</body>`);
     if (!finalHtml.includes(watermarkHtml)) {
@@ -227,9 +229,11 @@ app.post('/', async (c) => {
       generation_time_ms: generationTimeMs,
     };
 
-    // Fire webhook async with retries if provided
+    // Fire webhook async with retries if provided.
+    // .catch() is explicit so the unawaited Promise does not become an
+    // unhandled rejection if deliverWebhook throws before its internal try/catch.
     if (webhook) {
-      deliverWebhook(webhook, response);
+      deliverWebhook(webhook, response).catch(() => {});
     }
 
     return c.json(response, 201);

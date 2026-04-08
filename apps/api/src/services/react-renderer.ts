@@ -1,128 +1,135 @@
 /**
  * React-to-HTML renderer.
  *
- * Accepts a JSX/TSX component string, transpiles it with esbuild,
- * then renders to static HTML with ReactDOMServer.
+ * Accepts a JSX/TSX component string and renders it to static HTML by
+ * delegating to an isolated child process (`react-render-worker`).
  *
- * The component string should export a default React component.
- * Example:
- *   export default function Invoice({ data }) {
- *     return <div><h1>Invoice #{data.id}</h1></div>;
- *   }
+ * Security model: user-controlled component code is executed inside a
+ * dedicated subprocess spawned via child_process.fork(). If the inner vm
+ * sandbox in the worker is bypassed, the attacker is confined to that
+ * subprocess — they cannot access the main API process's heap, secrets,
+ * environment variables, or file descriptors. The main process enforces a
+ * hard timeout and kills the child if it does not respond in time.
+ *
+ * Tradeoff vs isolated-vm: child_process.fork() uses real OS process
+ * isolation (separate address space, separate file descriptor table) at the
+ * cost of ~50–150ms cold-start per render. isolated-vm would be faster and
+ * equally secure, but requires native compilation. Migrate to isolated-vm
+ * if render latency becomes a concern.
  */
-import { transformSync } from 'esbuild';
-import React, { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { Script, createContext } from 'vm';
+
+import { fork } from 'child_process';
+import { fileURLToPath } from 'url';
+import { join, dirname } from 'path';
 import { ValidationError } from '../lib/errors.js';
 
-const SANDBOX_TIMEOUT_MS = 5000; // 5 seconds max for component evaluation
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-/**
- * Transpile JSX/TSX to plain JS then evaluate it in a hardened sandbox.
- */
-function transpileComponent(source: string): (props: Record<string, unknown>) => React.ReactElement {
-  // Transpile JSX → JS using classic React.createElement transform
-  const result = transformSync(source, {
-    loader: 'tsx',
-    format: 'cjs',
-    jsx: 'transform',
-    jsxFactory: 'React.createElement',
-    jsxFragment: 'React.Fragment',
-    target: 'es2020',
-  });
+const PROCESS_TIMEOUT_MS = 8000; // hard-kill timeout for the child process
+const MAX_SOURCE_SIZE = 1_048_576; // 1 MB
 
-  // Build a hardened sandbox that blocks access to Node.js internals.
-  // We explicitly null out dangerous globals and freeze the scope objects
-  // to prevent prototype chain traversal attacks.
-  const moduleExports: Record<string, unknown> = {};
-  const moduleObj = { exports: moduleExports };
-
-  const requireShim = (id: string) => {
-    if (id === 'react' || id === 'react/jsx-runtime' || id === 'react/jsx-dev-runtime') {
-      return React;
-    }
-    throw new Error(`Cannot require "${id}" in React component. Only react is available.`);
-  };
-
-  // Execute in a VM sandbox with a timeout to prevent infinite loops and
-  // block access to Node.js internals. The context only exposes the
-  // minimum required globals (module, exports, require shim, React).
-  const sandbox = createContext(
-    {
-      module: moduleObj,
-      exports: moduleExports,
-      require: requireShim,
-      React,
-      // Dangerous globals explicitly set to undefined
-      process: undefined,
-      global: undefined,
-      globalThis: undefined,
-      Buffer: undefined,
-      setTimeout: undefined,
-      setInterval: undefined,
-      setImmediate: undefined,
-      eval: undefined,
-      Function: undefined,
-    },
-    {
-      codeGeneration: { strings: false, wasm: false },
-    },
-  );
-
-  const script = new Script(result.code, { filename: 'user-component.tsx' });
-  script.runInContext(sandbox, { timeout: SANDBOX_TIMEOUT_MS });
-
-  const component = (moduleObj.exports as Record<string, unknown>).default || moduleObj.exports;
-
-  if (typeof component !== 'function') {
-    throw new ValidationError(
-      'React component must export a default function component. ' +
-      'Example: export default function MyDoc(props) { return <div>...</div>; }',
-    );
-  }
-
-  return component as (props: Record<string, unknown>) => React.ReactElement;
+interface WorkerMessage {
+  type: 'ready' | 'success' | 'error';
+  html?: string;
+  message?: string;
+  isValidation?: boolean;
 }
 
 /**
- * Render a React component string to full HTML document.
+ * Determine the worker script path and any extra Node.js exec args.
+ * In development (tsx/ts-node), the source .ts is executed via `--import tsx`.
+ * In production, the compiled .js is executed directly.
  */
-const MAX_SOURCE_SIZE = 1_048_576; // 1MB
+function getWorkerConfig(): { workerPath: string; execArgv: string[] } {
+  const isTsDev = __filename.endsWith('.ts');
+  if (isTsDev) {
+    return {
+      workerPath: join(__dirname, '..', 'workers', 'react-render-worker.ts'),
+      execArgv: ['--import', 'tsx'],
+    };
+  }
+  return {
+    workerPath: join(__dirname, '..', 'workers', 'react-render-worker.js'),
+    execArgv: [],
+  };
+}
 
-export function renderReactToHtml(
+/**
+ * Render a React component string to a full HTML document.
+ * Executes in an isolated child process with a hard timeout.
+ */
+export async function renderReactToHtml(
   componentSource: string,
   props: Record<string, unknown> = {},
   styles?: string,
-): string {
+): Promise<string> {
   if (componentSource.length > MAX_SOURCE_SIZE) {
     throw new ValidationError(`React component source exceeds maximum size of ${MAX_SOURCE_SIZE} bytes`);
   }
 
-  try {
-    const Component = transpileComponent(componentSource);
-    const element = createElement(Component, props);
-    const bodyHtml = renderToStaticMarkup(element);
+  return new Promise<string>((resolve, reject) => {
+    const { workerPath, execArgv } = getWorkerConfig();
 
-    // Wrap in a full HTML document
-    return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Helvetica Neue', Arial, sans-serif; }
-  ${styles || ''}
-</style>
-</head>
-<body>${bodyHtml}</body>
-</html>`;
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    const msg = err instanceof Error ? err.message : String(err);
-    const safeMsg = process.env.NODE_ENV === 'production'
-      ? 'Failed to render React component'
-      : `Failed to render React component: ${msg}`;
-    throw new ValidationError(safeMsg);
-  }
+    const child = fork(workerPath, [], {
+      execArgv,
+      env: {
+        // Pass ONLY the minimum env vars needed to run the worker.
+        // Deliberately omit DATABASE_URL, REDIS_URL, API keys, secrets, etc.
+        NODE_ENV: process.env.NODE_ENV,
+      },
+      stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
+      detached: false,
+    });
+
+    let settled = false;
+
+    const done = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    };
+
+    const timer = setTimeout(() => {
+      done(() => {
+        child.kill('SIGKILL');
+        reject(new ValidationError('React component render timed out'));
+      });
+    }, PROCESS_TIMEOUT_MS);
+
+    child.on('message', (msg: WorkerMessage) => {
+      if (msg.type === 'ready') {
+        // Worker is up — send the render request
+        child.send({ type: 'render', componentSource, props, styles });
+        return;
+      }
+
+      if (msg.type === 'success') {
+        done(() => {
+          child.kill('SIGTERM');
+          resolve(msg.html!);
+        });
+      } else {
+        done(() => {
+          child.kill('SIGTERM');
+          reject(new ValidationError(msg.message || 'Failed to render React component'));
+        });
+      }
+    });
+
+    child.on('error', (err) => {
+      done(() => reject(new ValidationError(`Failed to spawn render worker: ${err.message}`)));
+    });
+
+    child.on('exit', (code, signal) => {
+      done(() => {
+        if (signal === 'SIGKILL') {
+          reject(new ValidationError('React component render timed out'));
+        } else if (signal !== 'SIGTERM') {
+          reject(new ValidationError(`Render worker exited unexpectedly (code=${code})`));
+        }
+      });
+    });
+  });
 }

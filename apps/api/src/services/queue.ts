@@ -30,6 +30,16 @@ function parseRedisConnection() {
 
 const connection = parseRedisConnection();
 
+export type PdfFormat =
+  | 'A4'
+  | 'Letter'
+  | 'Legal'
+  | { width: string; height: string };
+
+export type PdfMargin =
+  | string
+  | { top?: string; right?: string; bottom?: string; left?: string };
+
 export interface GenerationJob {
   generationId: string;
   userId: string;
@@ -39,8 +49,8 @@ export interface GenerationJob {
   data?: Record<string, unknown>;
   styles?: string;
   options?: {
-    format?: any;
-    margin?: any;
+    format?: PdfFormat;
+    margin?: PdfMargin;
     orientation?: 'portrait' | 'landscape';
     header?: string;
     footer?: string;
@@ -97,7 +107,7 @@ export function startWorker() {
           if (!tmpl) throw new Error('Template not found');
           finalHtml = mergeTemplate(tmpl.htmlContent, data || {});
         } else if (react) {
-          finalHtml = renderReactToHtml(react, data || {}, styles);
+          finalHtml = await renderReactToHtml(react, data || {}, styles);
         } else {
           finalHtml = html!;
         }
@@ -139,7 +149,7 @@ export function startWorker() {
             generation_time_ms: generationTimeMs,
           };
 
-          if (webhook) deliverWebhook(webhook, response);
+          if (webhook) deliverWebhook(webhook, response).catch(() => {});
           return response;
         }
 
@@ -168,7 +178,7 @@ export function startWorker() {
           generation_time_ms: generationTimeMs,
         };
 
-        if (webhook) deliverWebhook(webhook, response);
+        if (webhook) deliverWebhook(webhook, response).catch(() => {});
         return response;
       } catch (err) {
         await db
