@@ -20,7 +20,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'This user no longer exists — they may have been deleted.' },
+      { status: 404 },
+    );
   }
 
   const now = new Date();
@@ -130,7 +133,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .returning();
 
   if (!updated) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'This user no longer exists — they may have been deleted.' },
+      { status: 404 },
+    );
   }
 
   return NextResponse.json({ data: updated });
@@ -155,7 +161,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   const [deleted] = await db.delete(users).where(eq(users.id, id)).returning();
   if (!deleted) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'This user no longer exists — they may have been deleted.' },
+      { status: 404 },
+    );
   }
 
   return NextResponse.json({ deleted: true });

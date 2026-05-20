@@ -74,10 +74,13 @@ function PlaygroundInner() {
       if (data.url) {
         setPdfUrl(data.url);
       } else {
-        setError(data.error?.message || 'Generation failed');
+        setError(
+          data.error?.message ||
+            "Couldn't render this HTML. Common causes: unclosed tags, external resources timing out, or invalid CSS @page rules.",
+        );
       }
     } catch {
-      setError('Failed to connect to API');
+      setError("Couldn't reach the API. Check your connection and refresh.");
     } finally {
       setLoading(false);
     }
@@ -99,11 +102,17 @@ function PlaygroundInner() {
             void handleGenerate(data.html_content);
           }
         } else {
-          setError(data.error?.message || 'Starter template not found');
+          setError(
+            data.error?.message ||
+              "Couldn't load that starter — it may have been removed. Pick another from /templates/gallery.",
+          );
         }
       })
       .catch(() => {
-        if (!cancelled) setError('Failed to load starter template');
+        if (!cancelled)
+          setError(
+            "Couldn't load the starter template. Refresh or pick another from /templates/gallery.",
+          );
       })
       .finally(() => {
         if (!cancelled) setTemplateLoading(false);
@@ -130,11 +139,15 @@ function PlaygroundInner() {
             void handleGenerate(data.html_content);
           }
         } else {
-          setError(data.error?.message || 'Template not found');
+          setError(
+            data.error?.message ||
+              'This template was deleted. Open Templates to see your remaining ones.',
+          );
         }
       })
       .catch(() => {
-        if (!cancelled) setError('Failed to load template');
+        if (!cancelled)
+          setError("Couldn't load the template. Refresh or open Templates.");
       })
       .finally(() => {
         if (!cancelled) setTemplateLoading(false);

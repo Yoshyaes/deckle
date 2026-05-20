@@ -192,11 +192,13 @@ export default async function GenerationDetailPage({
               </div>
             ) : isFailed ? (
               <div className="bg-surface border border-border rounded-[14px] flex items-center justify-center" style={{ height: '400px' }}>
-                <p className="text-sm text-text-dim">Generation failed — no PDF available.</p>
+                <p className="text-sm text-text-dim">
+                  This PDF failed to render. See the error above; open the playground to retry with the same HTML.
+                </p>
               </div>
             ) : (
               <div className="bg-surface border border-border rounded-[14px] flex items-center justify-center" style={{ height: '400px' }}>
-                <p className="text-sm text-text-dim">PDF is still processing...</p>
+                <p className="text-sm text-text-dim">Still rendering. Refresh in a few seconds to check.</p>
               </div>
             )}
           </div>

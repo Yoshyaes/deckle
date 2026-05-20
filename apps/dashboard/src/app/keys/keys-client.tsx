@@ -56,7 +56,10 @@ export function KeysClient({ initialKeys }: { initialKeys: ApiKey[] }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error?.message || 'Failed to create key');
+        throw new Error(
+          data?.error?.message ||
+            "Couldn't create the key. Refresh and try again — if this persists, you may be signed out.",
+        );
       }
       const data = await res.json();
       setCreatedKey(data.key);
@@ -75,7 +78,9 @@ export function KeysClient({ initialKeys }: { initialKeys: ApiKey[] }) {
         ...prev,
       ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create key');
+      setError(
+        err instanceof Error ? err.message : "Couldn't create the key. Refresh and try again.",
+      );
     } finally {
       setCreating(false);
     }
@@ -96,14 +101,20 @@ export function KeysClient({ initialKeys }: { initialKeys: ApiKey[] }) {
       const res = await fetch(`/api/keys?id=${keyId}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error?.message || 'Failed to delete key');
+        throw new Error(
+          data?.error?.message ||
+            "Couldn't revoke that key. It may have already been deleted — refresh the page.",
+        );
       }
       setKeys((prev) => prev.filter((k) => k.id !== keyId));
       toast.success('API key revoked.');
       setRevokeTarget(null);
       router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete key';
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Couldn't revoke that key. It may have already been deleted — refresh the page.";
       setError(message);
       toast.error(message);
     } finally {

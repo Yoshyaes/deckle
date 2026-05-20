@@ -973,7 +973,10 @@ export function VisualEditor() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error?.message || 'Failed to save template');
+        throw new Error(
+          data?.error?.message ||
+            "Couldn't save. Your work is still in this editor — try again or copy the HTML out.",
+        );
       }
       const data = await res.json();
       setSaveMessage({ type: 'success', text: 'Template saved!' });
@@ -983,7 +986,10 @@ export function VisualEditor() {
     } catch (err) {
       setSaveMessage({
         type: 'error',
-        text: err instanceof Error ? err.message : 'Failed to save',
+        text:
+          err instanceof Error
+            ? err.message
+            : "Couldn't save. Your work is still in this editor — try again or copy the HTML out.",
       });
     } finally {
       setSaving(false);

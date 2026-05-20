@@ -53,14 +53,21 @@ export function TemplateEditor({ template, usageCount, usageLimit }: TemplateEdi
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error?.message || 'Failed to save');
+        throw new Error(
+          data?.error?.message ||
+            "Couldn't save the template. Refresh and retry — your edits are still in this tab.",
+        );
       }
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't save the template. Refresh and retry — your edits are still in this tab.",
+      );
     } finally {
       setSaving(false);
     }

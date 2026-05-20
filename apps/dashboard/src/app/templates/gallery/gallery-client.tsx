@@ -82,13 +82,20 @@ export function StarterGallery({ templates }: { templates: StarterTemplate[] }) 
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error?.message || 'Failed to clone template');
+        throw new Error(
+          data?.error?.message ||
+            "Couldn't clone — you may be over your template limit, or there was a network issue.",
+        );
       }
 
       const data = await res.json();
       router.push(`/templates/${data.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to clone');
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't clone — you may be over your template limit, or there was a network issue.",
+      );
     } finally {
       setCloning(null);
     }
