@@ -18,6 +18,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3",
     "@hono/node-server": "^1",
+    "@sentry/node": "^10.53.1",
     "bcryptjs": "^2",
     "bullmq": "^5.70.1",
     "dotenv": "^16",

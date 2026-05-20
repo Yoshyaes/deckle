@@ -24,9 +24,16 @@ const columns = [
   {
     title: 'Company',
     links: [
+      { label: 'Contact', href: '/contact' },
+      { label: 'Security', href: '/security' },
       { label: 'GitHub', href: 'https://github.com/docuforge' },
-      { label: 'Twitter', href: 'https://twitter.com/docuforge' },
-      { label: 'Discord', href: '#' },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Terms', href: '/terms' },
+      { label: 'Privacy', href: '/privacy' },
     ],
   },
 ];
@@ -35,7 +42,7 @@ export function Footer() {
   return (
     <footer className="border-t border-border-subtle">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-8">
           {/* Brand */}
           <div className="col-span-2 sm:col-span-1">
             <div className="mb-4">

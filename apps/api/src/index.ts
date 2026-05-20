@@ -1,5 +1,11 @@
 import 'dotenv/config';
 import './lib/env.js';
+import { initSentry, captureException } from './lib/sentry.js';
+
+// Sentry must initialize before any code that throws so error capture is
+// active for module-load errors and the BullMQ workers below.
+initSentry();
+
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -132,6 +138,16 @@ app.route('/v1', v1);
 app.onError((err, c) => {
   const { status, body } = errorResponse(err);
 
+  // Send 5xx errors to Sentry (when configured). 4xx are expected
+  // validation/auth failures and would drown the signal.
+  if (status >= 500) {
+    captureException(err, {
+      method: c.req.method,
+      path: c.req.path,
+      code: body.error.code,
+    });
+  }
+
   // Record /v1/* errors so the admin dashboard can see them. Fire-and-forget.
   const path = c.req.path;
   if (path.startsWith('/v1/')) {
@@ -234,9 +250,11 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 
 process.on('unhandledRejection', (reason) => {
   logger.error({ err: reason }, 'Unhandled promise rejection');
+  captureException(reason, { source: 'unhandledRejection' });
 });
 
 process.on('uncaughtException', (err) => {
   logger.error({ err }, 'Uncaught exception');
+  captureException(err, { source: 'uncaughtException' });
   void shutdown('uncaughtException');
 });
