@@ -79,7 +79,14 @@ describe('errorResponse', () => {
     const err = new RateLimitError(3);
     const { status, body } = errorResponse(err);
     expect(status).toBe(429);
-    expect(body.error.retry_after).toBe(3);
+    // RateLimitError-shaped branch carries retry_after.
+    expect((body.error as { retry_after?: number }).retry_after).toBe(3);
+  });
+
+  it('echoes the request_id back in every error response', () => {
+    const id = '11111111-2222-3333-4444-555555555555';
+    expect(errorResponse(new AuthError(), id).body.error.request_id).toBe(id);
+    expect(errorResponse(new Error('boom'), id).body.error.request_id).toBe(id);
   });
 
   it('handles unknown errors as 500', () => {

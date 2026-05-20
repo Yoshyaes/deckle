@@ -178,6 +178,9 @@ export function startDripWorker(): void {
         to: user.email,
         subject: tmpl.subject,
         html: tmpl.html,
+        // Tie the send to the canonical user record so sendEmail
+        // refuses to deliver if the DB row's email doesn't match.
+        userId: user.id,
       });
 
       if (result.error) {

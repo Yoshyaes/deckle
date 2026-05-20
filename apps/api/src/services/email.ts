@@ -6,6 +6,9 @@
  * which keeps local dev and CI green without a mail provider.
  */
 
+import { eq } from 'drizzle-orm';
+import { db } from '../lib/db.js';
+import { users } from '../schema/db.js';
 import { logger } from '../lib/logger.js';
 
 export interface SendEmailInput {
@@ -14,6 +17,13 @@ export interface SendEmailInput {
   html: string;
   text?: string;
   replyTo?: string;
+  /**
+   * If supplied, sendEmail will look up this user's canonical
+   * `users.email` from the DB and refuse to send if it doesn't match
+   * `to`. Defends against an upstream impersonation bug accidentally
+   * delivering email to the wrong inbox. audits/02-security.md P3.
+   */
+  userId?: string;
 }
 
 export interface SendEmailResult {
@@ -43,6 +53,37 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       'Email skipped — RESEND_API_KEY or EMAIL_FROM not configured',
     );
     return { id: null, skipped: true };
+  }
+
+  // When a userId is provided, verify the destination email against
+  // the canonical user record. A mismatch indicates an upstream bug
+  // (or impersonation) and we refuse to send rather than ship the
+  // message to the wrong inbox.
+  if (input.userId) {
+    const [user] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, input.userId))
+      .limit(1);
+    if (!user) {
+      logger.error(
+        { userId: input.userId, to: input.to, subject: input.subject },
+        'Email refused: userId does not match any user',
+      );
+      return { id: null, skipped: false, error: 'recipient-userid-not-found' };
+    }
+    if (user.email.toLowerCase() !== input.to.toLowerCase()) {
+      logger.error(
+        {
+          userId: input.userId,
+          requested: input.to,
+          canonical: user.email,
+          subject: input.subject,
+        },
+        'Email refused: requested recipient does not match canonical user.email',
+      );
+      return { id: null, skipped: false, error: 'recipient-mismatch' };
+    }
   }
 
   const body = {
