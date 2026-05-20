@@ -131,3 +131,173 @@ export interface DocuForgeOptions {
   /** Maximum number of retries for failed requests (429/5xx). Defaults to 3. */
   maxRetries?: number;
 }
+
+// ── PDF tools ────────────────────────────────────────────────────────
+
+export interface PdfMergeParams {
+  /** Base64-encoded PDFs. Must include at least 2 items. */
+  pdfs: string[];
+  output?: 'url' | 'base64';
+}
+
+export interface PdfMergeResponse {
+  url?: string;
+  data?: string;
+  file_size: number;
+}
+
+export interface PdfSplitParams {
+  /** Base64-encoded PDF. */
+  pdf: string;
+  /** Optional page ranges. Each entry is [start] (single page) or [start, end] (inclusive, 1-indexed). */
+  ranges?: number[][];
+  output?: 'url' | 'base64';
+}
+
+export interface PdfSplitResponse {
+  parts: Array<{ url?: string; data?: string; file_size: number }>;
+  total: number;
+}
+
+export interface PdfInfoParams {
+  pdf: string;
+}
+
+export interface PdfInfoResponse {
+  pages: number;
+  fileSize?: number;
+  title?: string;
+  author?: string;
+  subject?: string;
+  keywords?: string;
+  creator?: string;
+  producer?: string;
+  creationDate?: string;
+  modificationDate?: string;
+}
+
+export interface PdfFormField {
+  name: string;
+  value: string | boolean;
+}
+
+export interface PdfFillFormParams {
+  pdf: string;
+  fields: PdfFormField[];
+  flatten?: boolean;
+  output?: 'url' | 'base64';
+}
+
+export interface PdfFormFieldDef {
+  name: string;
+  type: 'text' | 'checkbox' | 'dropdown';
+  page: number;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  options?: string[];
+  defaultValue?: string | boolean;
+}
+
+export interface PdfAddFormFieldsParams {
+  pdf: string;
+  fields: PdfFormFieldDef[];
+  output?: 'url' | 'base64';
+}
+
+export interface PdfListFormFieldsResponse {
+  fields: Array<{ name: string; type: string; value?: unknown }>;
+  total: number;
+}
+
+export interface PdfToPdfAParams {
+  pdf: string;
+  title?: string;
+  author?: string;
+  subject?: string;
+  output?: 'url' | 'base64';
+}
+
+export interface PdfSignAnnotationParams {
+  pdf: string;
+  name: string;
+  reason?: string;
+  location?: string;
+  contact?: string;
+  page?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  output?: 'url' | 'base64';
+}
+
+export interface PdfSignAnnotationResponse {
+  url?: string;
+  data?: string;
+  file_size: number;
+  /**
+   * Visual annotation only — not a cryptographic signature. See
+   * docs/api-reference/pdf-sign for the security implications.
+   */
+  signature_annotation_added: boolean;
+}
+
+// ── Marketplace ──────────────────────────────────────────────────────
+
+export interface MarketplaceTemplate {
+  id: string;
+  name: string;
+  version: number;
+  user_id: string;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CloneTemplateResponse {
+  id: string;
+  name: string;
+  version: number;
+  created_at: string;
+}
+
+// ── Starter templates ───────────────────────────────────────────────
+
+export interface StarterTemplate {
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  sample_data?: Record<string, unknown>;
+  html_content?: string;
+}
+
+// ── AI template generation ──────────────────────────────────────────
+
+export interface AiGenerateTemplateParams {
+  prompt: string;
+  variables?: string[];
+}
+
+export interface AiGenerateTemplateResponse {
+  html_content: string;
+  variables: string[];
+  notes?: string;
+}
+
+// ── Template versions ───────────────────────────────────────────────
+
+export interface TemplateVersion {
+  id: string;
+  version: number;
+  created_at: string;
+  html_content?: string;
+  schema?: Record<string, unknown>;
+}
+
+export interface TemplateVersionsResponse {
+  current_version: number;
+  data: TemplateVersion[];
+}
