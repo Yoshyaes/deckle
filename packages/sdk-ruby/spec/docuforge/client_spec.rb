@@ -235,6 +235,20 @@ RSpec.describe DocuForge::Client do
       expect(called).to be(true)
     end
 
+    it "marketplace_report POSTs reason + notes" do
+      captured = nil
+      stubs = Faraday::Adapter::Test::Stubs.new do |s|
+        s.post("/v1/marketplace/tmpl_xyz/report") do |env|
+          captured = JSON.parse(env.body)
+          [201, {}, JSON.generate({ "report_id" => "rep_1", "auto_actioned" => false })]
+        end
+      end
+      result = build_client(stubs).marketplace_report("tmpl_xyz", reason: "spam", notes: "repetitive")
+      expect(result["report_id"]).to eq("rep_1")
+      expect(result["auto_actioned"]).to be(false)
+      expect(captured).to eq("reason" => "spam", "notes" => "repetitive")
+    end
+
     it "starter_templates_list hits /v1/starter-templates" do
       called = false
       stubs = Faraday::Adapter::Test::Stubs.new do |s|

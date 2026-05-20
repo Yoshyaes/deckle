@@ -126,5 +126,23 @@ describe('DocuForge SDK', () => {
       expect(String(url)).toContain(expectedUrl);
       expect(opts.method).toBe(expectedMethod);
     });
+
+    it('marketplace.report POSTs the reason and notes to the right URL', async () => {
+      fetchMock.mockResolvedValueOnce(
+        successResponse({ report_id: 'rep_1', auto_actioned: false }),
+      );
+      const client = new DocuForge('df_live_x', { maxRetries: 0 });
+      const result = await client.marketplace.report('tmpl_xyz', {
+        reason: 'spam',
+        notes: 'repetitive nonsense',
+      });
+      expect(result.report_id).toBe('rep_1');
+      expect(result.auto_actioned).toBe(false);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(String(url)).toContain('/v1/marketplace/tmpl_xyz/report');
+      expect(opts.method).toBe('POST');
+      const body = JSON.parse(opts.body as string);
+      expect(body).toEqual({ reason: 'spam', notes: 'repetitive nonsense' });
+    });
   });
 });

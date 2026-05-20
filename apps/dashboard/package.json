@@ -21,7 +21,8 @@
     "next": "^14",
     "pg": "^8.18.0",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

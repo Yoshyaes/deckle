@@ -244,6 +244,21 @@ module DocuForge
       request(:post, "/v1/marketplace/#{id}/unpublish")
     end
 
+    # Report a public marketplace template for moderator review.
+    #
+    # reason: one of "spam", "malicious", "copyright", "inappropriate",
+    # "other". notes: optional, max 1000 chars.
+    #
+    # Returns { "report_id" => ..., "auto_actioned" => bool }.
+    # auto_actioned is true when this report tripped the auto-hide
+    # threshold (3 independent reports). Re-reporting the same template
+    # from the same user yields a 409 (DocuForge::Error).
+    def marketplace_report(id, reason:, notes: nil)
+      body = { "reason" => reason }
+      body["notes"] = notes unless notes.nil?
+      request(:post, "/v1/marketplace/#{id}/report", body: body)
+    end
+
     # ── Starter templates ──────────────────────────────────────────
 
     def starter_templates_list

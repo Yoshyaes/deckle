@@ -565,6 +565,21 @@ func (c *Client) UnpublishMarketplaceTemplate(ctx context.Context, id string) er
 	return c.doRequest(ctx, http.MethodPost, "/v1/marketplace/"+id+"/unpublish", nil, nil)
 }
 
+// ReportMarketplaceTemplate flags a public template for moderator review.
+// Reason must be one of: spam, malicious, copyright, inappropriate, other.
+// AutoActioned is true when this report tripped the auto-hide threshold
+// (3 independent reports).
+func (c *Client) ReportMarketplaceTemplate(ctx context.Context, id string, params MarketplaceReportParams) (*MarketplaceReportResponse, error) {
+	if params.Reason == "" {
+		return nil, fmt.Errorf("docuforge: ReportMarketplaceTemplate requires Reason")
+	}
+	var result MarketplaceReportResponse
+	if err := c.doRequest(ctx, http.MethodPost, "/v1/marketplace/"+id+"/report", params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // --------------------------------------------------------------------------
 // Starter templates
 // --------------------------------------------------------------------------

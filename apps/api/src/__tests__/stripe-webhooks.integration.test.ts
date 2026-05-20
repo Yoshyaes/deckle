@@ -73,7 +73,7 @@ let handleWebhookEvent: typeof import('../services/stripe.js').handleWebhookEven
 
 beforeAll(async () => {
   if (!reachable) return;
-  testDb = await setupTestDatabase();
+  testDb = await setupTestDatabase('stripe');
 
   // Redirect the production db.ts singleton to the test pool. Done by
   // vi.mock with a factory that returns the test pool/handle.

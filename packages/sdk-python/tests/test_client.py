@@ -247,6 +247,20 @@ class TestPdfNamespace:
         assert route.called
 
     @respx.mock
+    def test_marketplace_report_posts_reason_and_notes(self):
+        route = respx.post(f"{BASE_URL}/v1/marketplace/tmpl_xyz/report").mock(
+            return_value=httpx.Response(
+                201, json={"report_id": "rep_1", "auto_actioned": False}
+            )
+        )
+        result = client().marketplace_report(
+            "tmpl_xyz", reason="spam", notes="repetitive nonsense"
+        )
+        assert result == {"report_id": "rep_1", "auto_actioned": False}
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"reason": "spam", "notes": "repetitive nonsense"}
+
+    @respx.mock
     def test_starter_templates_list_hits_v1_starter_templates(self):
         route = respx.get(f"{BASE_URL}/v1/starter-templates").mock(
             return_value=httpx.Response(200, json={"data": []})

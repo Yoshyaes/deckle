@@ -450,6 +450,21 @@ type CloneTemplateResponse struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// MarketplaceReportParams configures /v1/marketplace/:id/report.
+// Reason must be one of: spam, malicious, copyright, inappropriate, other.
+type MarketplaceReportParams struct {
+	Reason string `json:"reason"`
+	Notes  string `json:"notes,omitempty"`
+}
+
+// MarketplaceReportResponse is returned by /v1/marketplace/:id/report.
+// AutoActioned is true when this report tripped the auto-hide threshold
+// (3 independent reports on the same template).
+type MarketplaceReportResponse struct {
+	ReportID     string `json:"report_id"`
+	AutoActioned bool   `json:"auto_actioned"`
+}
+
 // StarterTemplate is a pre-built template returned by /v1/starter-templates.
 type StarterTemplate struct {
 	Slug        string                 `json:"slug"`

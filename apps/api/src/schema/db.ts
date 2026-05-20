@@ -228,3 +228,47 @@ export const customFonts = pgTable('custom_fonts', {
 }, (table) => ({
   userIdIdx: index('custom_fonts_user_id_idx').on(table.userId),
 }));
+
+// --- Marketplace abuse reporting ---
+
+export const templateReportReasonEnum = pgEnum('template_report_reason', [
+  'spam',
+  'malicious',
+  'copyright',
+  'inappropriate',
+  'other',
+]);
+
+export const templateReportStatusEnum = pgEnum('template_report_status', [
+  'open',
+  'auto_actioned',
+  'dismissed',
+  'actioned',
+]);
+
+export const templateReports = pgTable(
+  'template_reports',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    templateId: varchar('template_id', { length: 64 })
+      .references(() => templates.id, { onDelete: 'cascade' })
+      .notNull(),
+    reporterId: uuid('reporter_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    reason: templateReportReasonEnum('reason').notNull(),
+    notes: text('notes'),
+    status: templateReportStatusEnum('status').notNull().default('open'),
+    resolverId: uuid('resolver_id').references(() => users.id, { onDelete: 'set null' }),
+    resolverNotes: text('resolver_notes'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    resolvedAt: timestamp('resolved_at'),
+  },
+  (table) => ({
+    templateIdx: index('template_reports_template_idx').on(table.templateId),
+    statusCreatedIdx: index('template_reports_status_created_at_idx').on(
+      table.status,
+      table.createdAt,
+    ),
+  }),
+);

@@ -5,10 +5,17 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../lib/db.js';
-import { templates } from '../schema/db.js';
+import { templates, users } from '../schema/db.js';
 import { tmplId } from '../lib/id.js';
 import { eq, and, desc } from 'drizzle-orm';
-import { ValidationError, NotFoundError } from '../lib/errors.js';
+import { ValidationError, NotFoundError, AppError } from '../lib/errors.js';
+import {
+  createTemplateReport,
+  listOpenReports,
+  dismissReport,
+  actionReport,
+  getModerationStats,
+} from '../services/moderation.js';
 
 const app = new Hono();
 
@@ -167,6 +174,129 @@ app.post('/:id/unpublish', async (c) => {
     name: updated.name,
     is_public: updated.isPublic,
   });
+});
+
+// ── Abuse reporting ──────────────────────────────────────────────────────
+
+const reportSchema = z.object({
+  reason: z.enum(['spam', 'malicious', 'copyright', 'inappropriate', 'other']),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+/**
+ * POST /:id/report - Flag a public template for moderator review.
+ * Per-user rate limited; self-reports refused; duplicate open reports
+ * from the same user collapse to a single record.
+ */
+app.post('/:id/report', async (c) => {
+  const id = c.req.param('id');
+  const user = c.get('user');
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = reportSchema.safeParse(body);
+  if (!parsed.success) {
+    throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+  }
+
+  const result = await createTemplateReport({
+    templateId: id,
+    reporterId: user.id,
+    reason: parsed.data.reason,
+    notes: parsed.data.notes,
+  });
+
+  return c.json(
+    {
+      report_id: result.reportId,
+      auto_actioned: result.autoActioned,
+    },
+    201,
+  );
+});
+
+// ── Admin-only moderation ────────────────────────────────────────────────
+
+/**
+ * Require the caller to be a workspace admin. The auth middleware has
+ * already verified the bearer token; we just gate by `users.role`.
+ */
+async function requireAdmin(c: { get: (k: 'user') => { id: string } }): Promise<{ id: string }> {
+  const user = c.get('user');
+  const [row] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+  if (!row || row.role !== 'admin') {
+    throw new AppError(403, 'FORBIDDEN', 'Admin role required');
+  }
+  return user;
+}
+
+/**
+ * GET /admin/reports - List open + auto-actioned reports.
+ */
+app.get('/admin/reports', async (c) => {
+  await requireAdmin(c);
+  const limit = Math.min(parseInt(c.req.query('limit') || '50') || 50, 200);
+  const offset = Math.max(parseInt(c.req.query('offset') || '0') || 0, 0);
+  const rows = await listOpenReports({ limit, offset });
+  return c.json({
+    data: rows.map((r) => ({
+      id: r.id,
+      template_id: r.templateId,
+      template_name: r.templateName,
+      template_is_public: r.templateIsPublic,
+      reason: r.reason,
+      notes: r.notes,
+      status: r.status,
+      reporter_id: r.reporterId,
+      created_at: r.createdAt,
+    })),
+  });
+});
+
+/**
+ * GET /admin/reports/stats - Counts for the moderation badge.
+ */
+app.get('/admin/reports/stats', async (c) => {
+  await requireAdmin(c);
+  return c.json(await getModerationStats());
+});
+
+const resolutionSchema = z.object({
+  notes: z.string().trim().max(1000).optional(),
+});
+
+/**
+ * POST /admin/reports/:reportId/dismiss - Close a report as a false positive.
+ * If the report had auto-unpublished the template, this reverses that.
+ */
+app.post('/admin/reports/:reportId/dismiss', async (c) => {
+  const moderator = await requireAdmin(c);
+  const reportId = c.req.param('reportId');
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = resolutionSchema.safeParse(body);
+  if (!parsed.success) {
+    throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+  }
+  await dismissReport(reportId, moderator.id, parsed.data.notes);
+  return c.json({ ok: true, status: 'dismissed' });
+});
+
+/**
+ * POST /admin/reports/:reportId/action - Confirm the report: unpublish the
+ * template and close every open report on it.
+ */
+app.post('/admin/reports/:reportId/action', async (c) => {
+  const moderator = await requireAdmin(c);
+  const reportId = c.req.param('reportId');
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = resolutionSchema.safeParse(body);
+  if (!parsed.success) {
+    throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+  }
+  await actionReport(reportId, moderator.id, parsed.data.notes);
+  return c.json({ ok: true, status: 'actioned' });
 });
 
 export default app;

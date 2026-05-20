@@ -419,6 +419,19 @@ export class DocuForge {
     unpublish: async (id: string): Promise<{ published: boolean }> => {
       return this.request('POST', `/v1/marketplace/${id}/unpublish`);
     },
+
+    /**
+     * Report a public template for moderator review. The same user
+     * reporting the same template twice returns the same `report_id`.
+     * Once a template hits three independent reports it is auto-hidden
+     * (`auto_actioned: true`) pending review.
+     */
+    report: async (
+      id: string,
+      params: { reason: 'spam' | 'malicious' | 'copyright' | 'inappropriate' | 'other'; notes?: string },
+    ): Promise<{ report_id: string; auto_actioned: boolean }> => {
+      return this.request('POST', `/v1/marketplace/${id}/report`, params);
+    },
   };
 
   /**

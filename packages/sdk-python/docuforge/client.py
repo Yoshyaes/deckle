@@ -478,6 +478,27 @@ class DocuForge:
         """Remove one of your templates from the public marketplace."""
         return self._request("POST", f"/v1/marketplace/{template_id}/unpublish")
 
+    def marketplace_report(
+        self,
+        template_id: str,
+        reason: str,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Report a public template for moderator review.
+
+        ``reason`` must be one of: ``spam``, ``malicious``, ``copyright``,
+        ``inappropriate``, ``other``. ``notes`` is optional (max 1000 chars).
+
+        Returns ``{report_id, auto_actioned}``. ``auto_actioned`` is ``True``
+        when this report tripped the auto-hide threshold (3 independent
+        reports). The same user reporting the same template twice gets
+        a 409 the second time — call it once and trust the moderation queue.
+        """
+        body: Dict[str, Any] = {"reason": reason}
+        if notes is not None:
+            body["notes"] = notes
+        return self._request("POST", f"/v1/marketplace/{template_id}/report", json=body)
+
     # ── Starter templates ──────────────────────────────────────────
     def starter_templates_list(self) -> Dict[str, Any]:
         """List the pre-built starter templates (public)."""

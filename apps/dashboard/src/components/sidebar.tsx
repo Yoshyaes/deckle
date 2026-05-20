@@ -14,6 +14,7 @@ import {
   Shield,
   Users,
   BookOpen,
+  Flag,
 } from 'lucide-react';
 
 const navItems = [
@@ -30,6 +31,7 @@ const adminNavItems = [
   { href: '/admin', label: 'Admin Overview', icon: Shield },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/generations', label: 'All Generations', icon: FileText },
+  { href: '/admin/moderation', label: 'Moderation', icon: Flag },
 ];
 
 interface SidebarProps {

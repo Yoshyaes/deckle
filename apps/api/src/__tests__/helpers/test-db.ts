@@ -30,7 +30,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as schema from '../../schema/db.js';
 
-const TEST_DB_NAME = 'docuforge_test';
+const DEFAULT_TEST_DB_NAME = 'docuforge_test';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_FOLDER = resolve(moduleDir, '../../../drizzle');
@@ -47,14 +47,14 @@ function getAdminUrl(): string {
   return 'postgresql://docuforge:docuforge_local@localhost:5432/postgres';
 }
 
-function getTestDbUrl(): string {
+function getTestDbUrl(dbName: string): string {
   const explicit = process.env.TEST_DATABASE_URL;
   if (explicit) {
     const u = new URL(explicit);
-    u.pathname = `/${TEST_DB_NAME}`;
+    u.pathname = `/${dbName}`;
     return u.toString();
   }
-  return `postgresql://docuforge:docuforge_local@localhost:5432/${TEST_DB_NAME}`;
+  return `postgresql://docuforge:docuforge_local@localhost:5432/${dbName}`;
 }
 
 export interface TestDatabase {
@@ -102,8 +102,22 @@ export async function isTestDbReachable(): Promise<boolean> {
 /**
  * Recreate the test database from scratch and run the project's
  * migrations against it. Returns a drizzle handle ready for use.
+ *
+ * @param suiteName Optional unique-per-test-file slug. Vitest runs
+ *   integration test files in parallel — each one calling
+ *   setupTestDatabase() with the same name would race on the
+ *   DROP / CREATE. Pass a slug like 'moderation' or 'stripe' so each
+ *   file owns its own database.
  */
-export async function setupTestDatabase(): Promise<TestDatabase> {
+export async function setupTestDatabase(suiteName?: string): Promise<TestDatabase> {
+  // Sanitize suite name to a safe Postgres identifier (lowercase
+  // [a-z0-9_], max 30 chars). Postgres DB names are case-sensitive
+  // when quoted, but unquoted identifiers fold to lowercase, so we
+  // normalize on the way in.
+  const safeSuite =
+    suiteName && /^[a-zA-Z0-9_]{1,30}$/.test(suiteName) ? suiteName.toLowerCase() : null;
+  const dbName = safeSuite ? `${DEFAULT_TEST_DB_NAME}_${safeSuite}` : DEFAULT_TEST_DB_NAME;
+
   // Phase 1: drop + recreate the database via the admin connection.
   const adminPool = new pg.Pool({
     connectionString: getAdminUrl(),
@@ -113,9 +127,9 @@ export async function setupTestDatabase(): Promise<TestDatabase> {
 
   try {
     // FORCE disconnects any lingering connections (e.g., from a prior
-    // crashed run holding sessions open against docuforge_test).
-    await adminPool.query(`DROP DATABASE IF EXISTS ${TEST_DB_NAME} WITH (FORCE)`);
-    await adminPool.query(`CREATE DATABASE ${TEST_DB_NAME}`);
+    // crashed run holding sessions open).
+    await adminPool.query(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);
+    await adminPool.query(`CREATE DATABASE ${dbName}`);
   } catch (err) {
     await adminPool.end().catch(() => undefined);
     throw new TestDbUnavailableError(err);
@@ -124,7 +138,7 @@ export async function setupTestDatabase(): Promise<TestDatabase> {
 
   // Phase 2: connect to the fresh database and run migrations.
   const pool = new pg.Pool({
-    connectionString: getTestDbUrl(),
+    connectionString: getTestDbUrl(dbName),
     connectionTimeoutMillis: 5_000,
     max: 5,
   });
@@ -171,7 +185,7 @@ export async function setupTestDatabase(): Promise<TestDatabase> {
     await pool.end().catch(() => undefined);
   }
 
-  return { db, pool, url: getTestDbUrl(), reset, close };
+  return { db, pool, url: getTestDbUrl(dbName), reset, close };
 }
 
 /** Re-export `sql` so test files have one import for raw queries. */

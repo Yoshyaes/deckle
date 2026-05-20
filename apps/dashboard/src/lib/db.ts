@@ -103,10 +103,51 @@ export const apiErrors = pgTable('api_errors', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const templateReportReasonEnum = pgEnum('template_report_reason', [
+  'spam',
+  'malicious',
+  'copyright',
+  'inappropriate',
+  'other',
+]);
+
+export const templateReportStatusEnum = pgEnum('template_report_status', [
+  'open',
+  'auto_actioned',
+  'dismissed',
+  'actioned',
+]);
+
+export const templateReports = pgTable('template_reports', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  templateId: varchar('template_id', { length: 64 })
+    .references(() => templates.id, { onDelete: 'cascade' })
+    .notNull(),
+  reporterId: uuid('reporter_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  reason: templateReportReasonEnum('reason').notNull(),
+  notes: text('notes'),
+  status: templateReportStatusEnum('status').notNull().default('open'),
+  resolverId: uuid('resolver_id').references(() => users.id, { onDelete: 'set null' }),
+  resolverNotes: text('resolver_notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  resolvedAt: timestamp('resolved_at'),
+});
+
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
 export const db = drizzle(pool, {
-  schema: { users, apiKeys, templates, templateVersions, generations, usageDaily, apiErrors },
+  schema: {
+    users,
+    apiKeys,
+    templates,
+    templateVersions,
+    generations,
+    usageDaily,
+    apiErrors,
+    templateReports,
+  },
 });
