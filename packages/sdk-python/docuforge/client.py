@@ -416,6 +416,34 @@ class DocuForge:
                 body[k] = v
         return self._request("POST", "/v1/pdf/sign", json=body)
 
+    def pdf_protect(
+        self,
+        pdf: str,
+        user_password: Optional[str] = None,
+        owner_password: Optional[str] = None,
+        permissions: Optional[Dict[str, Any]] = None,
+        output: str = "url",
+    ) -> Dict[str, Any]:
+        """AES-256 encrypt a PDF with a user and/or owner password.
+
+        At least one of ``user_password`` / ``owner_password`` is required.
+        If only one is supplied, the other is mirrored on the server so an
+        empty owner password cannot be used to strip restrictions.
+
+        ``permissions`` accepts ``print`` ('none' | 'low' | 'full'),
+        ``modify`` (bool), ``copy`` (bool), and ``annotate`` (bool).
+        """
+        if not user_password and not owner_password:
+            raise ValueError("user_password or owner_password is required")
+        body: Dict[str, Any] = {"pdf": pdf, "output": output}
+        if user_password is not None:
+            body["user_password"] = user_password
+        if owner_password is not None:
+            body["owner_password"] = owner_password
+        if permissions is not None:
+            body["permissions"] = permissions
+        return self._request("POST", "/v1/pdf/protect", json=body)
+
     # ── Marketplace ────────────────────────────────────────────────
     def marketplace_list(self) -> Dict[str, Any]:
         """List public marketplace templates."""

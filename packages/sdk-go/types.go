@@ -377,6 +377,34 @@ type PdfSignAnnotationResponse struct {
 	SignatureAnnotationAdded  bool   `json:"signature_annotation_added"`
 }
 
+// PdfProtectPermissions controls /v1/pdf/protect's PDF restriction flags.
+// Print = "none" | "low" | "full" (default "full").
+type PdfProtectPermissions struct {
+	Print    string `json:"print,omitempty"`
+	Modify   *bool  `json:"modify,omitempty"`
+	Copy     *bool  `json:"copy,omitempty"`
+	Annotate *bool  `json:"annotate,omitempty"`
+}
+
+// PdfProtectParams configures /v1/pdf/protect. At least one of
+// UserPassword / OwnerPassword must be set.
+type PdfProtectParams struct {
+	PDF           string                 `json:"pdf"`
+	UserPassword  string                 `json:"user_password,omitempty"`
+	OwnerPassword string                 `json:"owner_password,omitempty"`
+	Permissions   *PdfProtectPermissions `json:"permissions,omitempty"`
+	Output        string                 `json:"output,omitempty"`
+}
+
+// PdfProtectResponse is returned by /v1/pdf/protect.
+type PdfProtectResponse struct {
+	URL        string `json:"url,omitempty"`
+	Data       string `json:"data,omitempty"`
+	FileSize   int64  `json:"file_size"`
+	Encrypted  bool   `json:"encrypted"`
+	Encryption string `json:"encryption"`
+}
+
 // --------------------------------------------------------------------------
 // Marketplace + starter templates
 // --------------------------------------------------------------------------

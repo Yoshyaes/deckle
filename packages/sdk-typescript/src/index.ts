@@ -24,6 +24,8 @@ import {
   PdfToPdfAParams,
   PdfSignAnnotationParams,
   PdfSignAnnotationResponse,
+  PdfProtectParams,
+  PdfProtectResponse,
   MarketplaceTemplate,
   CloneTemplateResponse,
   StarterTemplate,
@@ -310,11 +312,9 @@ export class DocuForge {
    * PDF and returns either a hosted URL or base64 depending on the
    * `output` parameter.
    *
-   * Note: `protect` is intentionally NOT exposed — the API endpoint
-   * currently returns 501 because the previous implementation did not
-   * apply real encryption. `sign` is exposed but its response field is
-   * `signature_annotation_added`, not `signed`, to reflect that this
-   * is a visual annotation, not a cryptographic signature.
+   * Note: `signAnnotation` adds a visual signature only — not a
+   * cryptographic signature. Its response field is
+   * `signature_annotation_added`, not `signed`, to make that explicit.
    */
   pdf = {
     /**
@@ -377,6 +377,16 @@ export class DocuForge {
       params: PdfSignAnnotationParams,
     ): Promise<PdfSignAnnotationResponse> => {
       return this.request('POST', '/v1/pdf/sign', params);
+    },
+
+    /**
+     * AES-256 encrypt a PDF with a user and/or owner password. At least
+     * one password is required. If only one is supplied, the other is
+     * mirrored so an empty owner password cannot be used to strip
+     * restrictions.
+     */
+    protect: async (params: PdfProtectParams): Promise<PdfProtectResponse> => {
+      return this.request('POST', '/v1/pdf/protect', params);
     },
   };
 
@@ -469,6 +479,8 @@ export type {
   PdfToPdfAParams,
   PdfSignAnnotationParams,
   PdfSignAnnotationResponse,
+  PdfProtectParams,
+  PdfProtectResponse,
   MarketplaceTemplate,
   CloneTemplateResponse,
   StarterTemplate,

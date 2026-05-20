@@ -1,6 +1,6 @@
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 
-# Install Playwright system dependencies + fonts
+# Install Playwright system dependencies + fonts + qpdf (for /v1/pdf/protect)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss3 \
     libnspr4 \
@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-color-emoji \
     fonts-liberation \
     ca-certificates \
+    qpdf \
     && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm (pinned version)

@@ -1,5 +1,5 @@
 # ── Stage 1: Build ──
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
@@ -20,9 +20,9 @@ COPY apps/api/ apps/api/
 RUN pnpm --filter @docuforge/api build
 
 # ── Stage 2: Production ──
-FROM node:20-slim
+FROM node:22-slim
 
-# Install Chromium system dependencies
+# Install Chromium system dependencies + qpdf (for /v1/pdf/protect)
 RUN apt-get update && apt-get install -y --no-install-recommends \
   libnss3 \
   libatk-bridge2.0-0 \
@@ -43,6 +43,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   fonts-liberation \
   fonts-noto-color-emoji \
   ca-certificates \
+  qpdf \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Playwright Chromium

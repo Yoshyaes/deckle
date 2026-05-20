@@ -400,11 +400,10 @@ func (c *Client) GetUsage(ctx context.Context) (*UsageStats, error) {
 // --------------------------------------------------------------------------
 // PDF tools
 //
-// NOTE: Protect is intentionally NOT exposed — the API endpoint currently
-// returns 501 because the previous implementation did not apply real
-// encryption. SignAnnotation is exposed (the response is named
-// SignatureAnnotationAdded, not Signed) so it's clear that this is a
-// visual annotation, not a cryptographic signature.
+// NOTE: SignAnnotation is named that way (response: SignatureAnnotationAdded,
+// not Signed) so it's clear that this is a visual annotation, not a
+// cryptographic signature. Protect uses AES-256 via the qpdf-backed server
+// endpoint and is real password protection.
 // --------------------------------------------------------------------------
 
 // PdfMerge merges multiple base64-encoded PDFs into one. Requires >= 2 inputs.
@@ -502,6 +501,24 @@ func (c *Client) PdfSignAnnotation(ctx context.Context, params PdfSignAnnotation
 	}
 	var result PdfSignAnnotationResponse
 	if err := c.doRequest(ctx, http.MethodPost, "/v1/pdf/sign", params, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// PdfProtect AES-256 encrypts a PDF with a user and/or owner password. At
+// least one of UserPassword / OwnerPassword must be set. If only one is
+// supplied the other is mirrored server-side so the restrictions cannot be
+// trivially stripped via an empty owner password.
+func (c *Client) PdfProtect(ctx context.Context, params PdfProtectParams) (*PdfProtectResponse, error) {
+	if params.Output == "" {
+		params.Output = "url"
+	}
+	if params.UserPassword == "" && params.OwnerPassword == "" {
+		return nil, fmt.Errorf("docuforge: PdfProtect requires UserPassword or OwnerPassword")
+	}
+	var result PdfProtectResponse
+	if err := c.doRequest(ctx, http.MethodPost, "/v1/pdf/protect", params, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

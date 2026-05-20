@@ -244,6 +244,35 @@ export interface PdfSignAnnotationResponse {
   signature_annotation_added: boolean;
 }
 
+export interface PdfProtectPermissions {
+  /** Print quality allowed: 'none' (deny), 'low' (degraded), 'full' (high-res). Default: 'full'. */
+  print?: 'none' | 'low' | 'full';
+  /** Allow edits/annotations/form fill. Default: false. */
+  modify?: boolean;
+  /** Allow text/image copying. Default: true. */
+  copy?: boolean;
+  /** Allow adding annotations even when modify=false. Default: false. */
+  annotate?: boolean;
+}
+
+export interface PdfProtectParams {
+  pdf: string;
+  /** Required to open the PDF. At least one of user_password or owner_password must be set. */
+  user_password?: string;
+  /** Required to strip restrictions. If omitted, mirrors user_password. */
+  owner_password?: string;
+  permissions?: PdfProtectPermissions;
+  output?: 'url' | 'base64';
+}
+
+export interface PdfProtectResponse {
+  url?: string;
+  data?: string;
+  file_size: number;
+  encrypted: true;
+  encryption: 'AES-256';
+}
+
 // ── Marketplace ──────────────────────────────────────────────────────
 
 export interface MarketplaceTemplate {

@@ -7,6 +7,7 @@ import { mergePdfs, splitPdf, getPdfInfo } from '../services/pdf-utils.js';
 import { fillFormFields, addFormFields, listFormFields } from '../services/pdf-forms.js';
 import { addSignature } from '../services/pdf-sign.js';
 import { makePdfA } from '../services/pdf-a.js';
+import { protectPdf, isQpdfAvailable } from '../services/pdf-protect.js';
 import { uploadPdf } from '../services/storage.js';
 import { genId } from '../lib/id.js';
 import { ValidationError } from '../lib/errors.js';
@@ -100,25 +101,82 @@ app.post('/split', async (c) => {
 });
 
 /**
- * POST /protect - Password-protect a PDF.
+ * POST /protect - AES-256 encrypt a PDF with a user and/or owner password.
  *
- * Currently disabled: the previous implementation only set document
- * metadata and returned `protected: true` without applying any actual
- * encryption. That is a security misrepresentation, so the endpoint
- * returns 501 until a real AES-encryption path (via qpdf or an
- * equivalent native module) is wired up.
+ * Real encryption via qpdf. Provide `user_password` (required to open),
+ * `owner_password` (required to strip restrictions), or both. If only one
+ * is given the other is mirrored so the protection cannot be trivially
+ * bypassed by leaving the owner password empty.
+ *
+ * Permission flags map to PDF spec restrictions. Defaults: full-resolution
+ * print allowed, no modification, copy allowed, no annotation.
  */
+const protectSchema = z
+  .object({
+    pdf: z.string().max(MAX_PDF_BASE64_SIZE),
+    user_password: z.string().min(1).max(127).optional(),
+    owner_password: z.string().min(1).max(127).optional(),
+    permissions: z
+      .object({
+        print: z.enum(['none', 'low', 'full']).optional(),
+        modify: z.boolean().optional(),
+        copy: z.boolean().optional(),
+        annotate: z.boolean().optional(),
+      })
+      .optional(),
+    output: z.enum(['url', 'base64']).default('url'),
+  })
+  .refine((d) => Boolean(d.user_password || d.owner_password), {
+    message: 'Either user_password or owner_password (or both) is required',
+    path: ['user_password'],
+  });
+
 app.post('/protect', async (c) => {
-  return c.json(
-    {
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message:
-          'PDF password protection is temporarily disabled. The previous behavior did not apply real encryption. A qpdf-based implementation is planned. Track the changelog for availability.',
+  if (!(await isQpdfAvailable())) {
+    return c.json(
+      {
+        error: {
+          code: 'NOT_AVAILABLE',
+          message:
+            'PDF protection is not available on this server: the qpdf binary is missing. Contact support if this persists.',
+        },
       },
-    },
-    501,
-  );
+      503,
+    );
+  }
+
+  const body = await c.req.json();
+  const parsed = protectSchema.safeParse(body);
+  if (!parsed.success) {
+    throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+  }
+
+  validateBase64Size(parsed.data.pdf);
+  const buffer = Buffer.from(parsed.data.pdf, 'base64');
+
+  const result = await protectPdf(buffer, {
+    userPassword: parsed.data.user_password,
+    ownerPassword: parsed.data.owner_password,
+    permissions: parsed.data.permissions,
+  });
+
+  if (parsed.data.output === 'base64') {
+    return c.json({
+      data: result.toString('base64'),
+      file_size: result.length,
+      encrypted: true,
+      encryption: 'AES-256',
+    });
+  }
+
+  const id = genId();
+  const url = await uploadPdf(id, result);
+  return c.json({
+    url,
+    file_size: result.length,
+    encrypted: true,
+    encryption: 'AES-256',
+  });
 });
 
 /**

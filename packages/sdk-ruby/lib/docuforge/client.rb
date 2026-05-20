@@ -123,12 +123,10 @@ module DocuForge
 
     # ── PDF tools ──────────────────────────────────────────────────
     #
-    # NOTE: `protect` is intentionally NOT exposed — the API endpoint
-    # currently returns 501 because the previous implementation did
-    # not apply real encryption. `sign_annotation` is exposed (and
-    # returns `signature_annotation_added: true`, not `signed`) so
-    # it's clear that this is a visual annotation, not a cryptographic
-    # signature.
+    # NOTE: `sign_annotation` returns `signature_annotation_added: true`
+    # (not `signed:`) so it's clear that this is a visual annotation,
+    # not a cryptographic signature. `protect` uses real AES-256
+    # encryption via qpdf server-side.
 
     # Merge multiple base64-encoded PDFs into one. Requires >= 2 inputs.
     def pdf_merge(pdfs:, output: "url")
@@ -196,6 +194,24 @@ module DocuForge
       body["width"]    = width    unless width.nil?
       body["height"]   = height   unless height.nil?
       request(:post, "/v1/pdf/sign", body: body)
+    end
+
+    # AES-256 encrypt a PDF. At least one of user_password / owner_password
+    # must be set. If only one is supplied the other is mirrored on the
+    # server so an empty owner password cannot be used to strip restrictions.
+    #
+    # permissions: hash with optional keys :print ("none" | "low" | "full"),
+    # :modify (bool), :copy (bool), :annotate (bool).
+    def pdf_protect(pdf:, user_password: nil, owner_password: nil,
+                    permissions: nil, output: "url")
+      if user_password.nil? && owner_password.nil?
+        raise ArgumentError, "user_password or owner_password is required"
+      end
+      body = { "pdf" => pdf, "output" => output }
+      body["user_password"]  = user_password  unless user_password.nil?
+      body["owner_password"] = owner_password unless owner_password.nil?
+      body["permissions"]    = permissions    unless permissions.nil?
+      request(:post, "/v1/pdf/protect", body: body)
     end
 
     # ── Marketplace ────────────────────────────────────────────────
