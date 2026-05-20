@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Plus, Trash2, Copy, Check, Key } from 'lucide-react';
 import { ConfirmDialog, Dialog } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
 
 interface ApiKey {
   id: string;
@@ -112,12 +115,9 @@ export function KeysClient({ initialKeys }: { initialKeys: ApiKey[] }) {
     <>
       {/* Create Key Button */}
       <div className="flex justify-end mb-4">
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-br from-accent to-orange-600 text-white text-sm font-semibold transition-opacity hover:opacity-90"
-        >
+        <Button onClick={() => setShowCreate(true)}>
           <Plus size={16} /> Create Key
-        </button>
+        </Button>
       </div>
 
       {/* Create Key Modal */}
@@ -133,30 +133,17 @@ export function KeysClient({ initialKeys }: { initialKeys: ApiKey[] }) {
         blocking={createdKey !== null}
         footer={
           createdKey ? (
-            <button
-              type="button"
-              onClick={handleCloseCreate}
-              className="px-4 py-2 rounded-md bg-accent text-white text-sm font-semibold hover:bg-accent/90"
-            >
+            <Button type="button" onClick={handleCloseCreate} size="md">
               Done
-            </button>
+            </Button>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={handleCloseCreate}
-                className="px-3 py-1.5 rounded-md text-sm font-medium text-text-muted hover:text-text-primary hover:bg-surface-hover"
-              >
+              <Button variant="ghost" size="sm" onClick={handleCloseCreate}>
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={creating}
-                className="px-3 py-1.5 rounded-md bg-accent text-white text-sm font-semibold hover:bg-accent/90 disabled:opacity-50"
-              >
+              </Button>
+              <Button size="sm" onClick={handleCreate} disabled={creating}>
                 {creating ? 'Creating…' : 'Create'}
-              </button>
+              </Button>
             </>
           )
         }
@@ -178,20 +165,14 @@ export function KeysClient({ initialKeys }: { initialKeys: ApiKey[] }) {
             </div>
           </div>
         ) : (
-          <div>
-            <label htmlFor="new-key-name" className="block text-xs font-medium text-text-muted mb-1.5">
-              Key name
-            </label>
-            <input
-              id="new-key-name"
-              type="text"
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              placeholder="e.g. Production, Staging"
-              className="w-full bg-[#0D0D0F] border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent/50"
-            />
-            {error && <p className="mt-2 text-xs text-red">{error}</p>}
-          </div>
+          <Input
+            id="new-key-name"
+            label="Key name"
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            placeholder="e.g. Production, Staging"
+            error={error ?? undefined}
+          />
         )}
       </Dialog>
 
@@ -203,7 +184,7 @@ export function KeysClient({ initialKeys }: { initialKeys: ApiKey[] }) {
       )}
 
       {/* Keys Table */}
-      <div className="bg-surface border border-border rounded-[14px] overflow-hidden">
+      <Card>
         <div className="px-5 py-3 border-b border-border-subtle grid grid-cols-[1fr_200px_120px_120px_60px] gap-4 text-xs font-medium text-text-dim">
           <span>Name</span>
           <span>Key</span>
@@ -252,7 +233,7 @@ export function KeysClient({ initialKeys }: { initialKeys: ApiKey[] }) {
             </div>
           ))
         )}
-      </div>
+      </Card>
 
       <ConfirmDialog
         open={revokeTarget !== null}
