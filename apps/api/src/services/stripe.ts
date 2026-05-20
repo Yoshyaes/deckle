@@ -133,39 +133,47 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
       const plan = session.metadata?.plan;
       if (!userId || !plan) break;
 
-      // Update user plan
-      await db
-        .update(users)
-        .set({ plan: plan as any })
-        .where(eq(users.id, userId));
-
-      // If there's a subscription, record it
+      // Fetch the subscription outside the transaction (network call).
+      let stripeSub: Stripe.Subscription | null = null;
       if (session.subscription) {
         const stripe = getStripe();
-        const sub = await stripe.subscriptions.retrieve(session.subscription as string);
-        await db
-          .insert(stripeSubscriptions)
-          .values({
-            userId,
-            stripeSubscriptionId: sub.id,
-            stripePriceId: sub.items.data[0]?.price.id || '',
-            status: sub.status,
-            currentPeriodStart: new Date(sub.current_period_start * 1000),
-            currentPeriodEnd: new Date(sub.current_period_end * 1000),
-            cancelAtPeriodEnd: sub.cancel_at_period_end,
-          })
-          .onConflictDoUpdate({
-            target: stripeSubscriptions.stripeSubscriptionId,
-            set: {
-              status: sub.status,
-              stripePriceId: sub.items.data[0]?.price.id || '',
-              currentPeriodStart: new Date(sub.current_period_start * 1000),
-              currentPeriodEnd: new Date(sub.current_period_end * 1000),
-              cancelAtPeriodEnd: sub.cancel_at_period_end,
-              updatedAt: new Date(),
-            },
-          });
+        stripeSub = await stripe.subscriptions.retrieve(session.subscription as string);
       }
+
+      // Apply plan + subscription record atomically so a crash between
+      // the two writes can't leave the user upgraded but the
+      // subscription unrecorded (or vice versa).
+      await db.transaction(async (tx) => {
+        await tx
+          .update(users)
+          .set({ plan: plan as any })
+          .where(eq(users.id, userId));
+
+        if (stripeSub) {
+          await tx
+            .insert(stripeSubscriptions)
+            .values({
+              userId,
+              stripeSubscriptionId: stripeSub.id,
+              stripePriceId: stripeSub.items.data[0]?.price.id || '',
+              status: stripeSub.status,
+              currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
+              currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+              cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+            })
+            .onConflictDoUpdate({
+              target: stripeSubscriptions.stripeSubscriptionId,
+              set: {
+                status: stripeSub.status,
+                stripePriceId: stripeSub.items.data[0]?.price.id || '',
+                currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
+                currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+                cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+                updatedAt: new Date(),
+              },
+            });
+        }
+      });
       break;
     }
 
@@ -174,59 +182,59 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
       const priceId = sub.items.data[0]?.price.id;
       const newPlan = PRICE_PLAN_MAP[priceId] || null;
 
-      // Update subscription record
-      await db
-        .update(stripeSubscriptions)
-        .set({
-          status: sub.status,
-          stripePriceId: priceId,
-          currentPeriodStart: new Date(sub.current_period_start * 1000),
-          currentPeriodEnd: new Date(sub.current_period_end * 1000),
-          cancelAtPeriodEnd: sub.cancel_at_period_end,
-          updatedAt: new Date(),
-        })
-        .where(eq(stripeSubscriptions.stripeSubscriptionId, sub.id));
+      await db.transaction(async (tx) => {
+        await tx
+          .update(stripeSubscriptions)
+          .set({
+            status: sub.status,
+            stripePriceId: priceId,
+            currentPeriodStart: new Date(sub.current_period_start * 1000),
+            currentPeriodEnd: new Date(sub.current_period_end * 1000),
+            cancelAtPeriodEnd: sub.cancel_at_period_end,
+            updatedAt: new Date(),
+          })
+          .where(eq(stripeSubscriptions.stripeSubscriptionId, sub.id));
 
-      // Sync plan if price changed
-      if (newPlan) {
-        const [subRecord] = await db
-          .select()
-          .from(stripeSubscriptions)
-          .where(eq(stripeSubscriptions.stripeSubscriptionId, sub.id))
-          .limit(1);
+        if (newPlan) {
+          const [subRecord] = await tx
+            .select()
+            .from(stripeSubscriptions)
+            .where(eq(stripeSubscriptions.stripeSubscriptionId, sub.id))
+            .limit(1);
 
-        if (subRecord) {
-          await db
-            .update(users)
-            .set({ plan: newPlan as any })
-            .where(eq(users.id, subRecord.userId));
+          if (subRecord) {
+            await tx
+              .update(users)
+              .set({ plan: newPlan as any })
+              .where(eq(users.id, subRecord.userId));
+          }
         }
-      }
+      });
       break;
     }
 
     case 'customer.subscription.deleted': {
       const sub = event.data.object as Stripe.Subscription;
 
-      // Mark subscription as canceled
-      await db
-        .update(stripeSubscriptions)
-        .set({ status: 'canceled', updatedAt: new Date() })
-        .where(eq(stripeSubscriptions.stripeSubscriptionId, sub.id));
+      await db.transaction(async (tx) => {
+        await tx
+          .update(stripeSubscriptions)
+          .set({ status: 'canceled', updatedAt: new Date() })
+          .where(eq(stripeSubscriptions.stripeSubscriptionId, sub.id));
 
-      // Downgrade user to free
-      const [subRecord] = await db
-        .select()
-        .from(stripeSubscriptions)
-        .where(eq(stripeSubscriptions.stripeSubscriptionId, sub.id))
-        .limit(1);
+        const [subRecord] = await tx
+          .select()
+          .from(stripeSubscriptions)
+          .where(eq(stripeSubscriptions.stripeSubscriptionId, sub.id))
+          .limit(1);
 
-      if (subRecord) {
-        await db
-          .update(users)
-          .set({ plan: 'free' })
-          .where(eq(users.id, subRecord.userId));
-      }
+        if (subRecord) {
+          await tx
+            .update(users)
+            .set({ plan: 'free' })
+            .where(eq(users.id, subRecord.userId));
+        }
+      });
       break;
     }
 

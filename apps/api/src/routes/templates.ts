@@ -117,35 +117,40 @@ app.put('/:id', async (c) => {
     throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
-  const [existing] = await db
-    .select()
-    .from(templates)
-    .where(and(eq(templates.id, id), eq(templates.userId, user.id)))
-    .limit(1);
+  // Snapshot the old version + bump + write the new version in one tx
+  // so a crash between INSERT templateVersions and UPDATE templates
+  // can no longer leave the version table out of sync with the row.
+  const updated = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(templates)
+      .where(and(eq(templates.id, id), eq(templates.userId, user.id)))
+      .limit(1);
 
-  if (!existing) throw new NotFoundError('Template');
+    if (!existing) throw new NotFoundError('Template');
 
-  const updateData: Record<string, unknown> = { updatedAt: new Date() };
-  if (parsed.data.name) updateData.name = parsed.data.name;
-  if (parsed.data.html_content) {
-    // Save current version to history before overwriting
-    await db.insert(templateVersions).values({
-      templateId: id,
-      version: existing.version,
-      htmlContent: existing.htmlContent,
-      schema: existing.schema,
-    });
-    updateData.htmlContent = parsed.data.html_content;
-    updateData.version = existing.version + 1;
-  }
-  if (parsed.data.schema !== undefined) updateData.schema = parsed.data.schema;
-  if (parsed.data.is_public !== undefined) updateData.isPublic = parsed.data.is_public;
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (parsed.data.name) updateData.name = parsed.data.name;
+    if (parsed.data.html_content) {
+      await tx.insert(templateVersions).values({
+        templateId: id,
+        version: existing.version,
+        htmlContent: existing.htmlContent,
+        schema: existing.schema,
+      });
+      updateData.htmlContent = parsed.data.html_content;
+      updateData.version = existing.version + 1;
+    }
+    if (parsed.data.schema !== undefined) updateData.schema = parsed.data.schema;
+    if (parsed.data.is_public !== undefined) updateData.isPublic = parsed.data.is_public;
 
-  const [updated] = await db
-    .update(templates)
-    .set(updateData)
-    .where(eq(templates.id, id))
-    .returning();
+    const [row] = await tx
+      .update(templates)
+      .set(updateData)
+      .where(eq(templates.id, id))
+      .returning();
+    return row;
+  });
 
   return c.json({
     id: updated.id,
@@ -231,48 +236,49 @@ app.post('/:id/restore', async (c) => {
   }
   const { version_id } = parsed.data;
 
-  const [existing] = await db
-    .select()
-    .from(templates)
-    .where(and(eq(templates.id, id), eq(templates.userId, user.id)))
-    .limit(1);
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(templates)
+      .where(and(eq(templates.id, id), eq(templates.userId, user.id)))
+      .limit(1);
 
-  if (!existing) throw new NotFoundError('Template');
+    if (!existing) throw new NotFoundError('Template');
 
-  const [ver] = await db
-    .select()
-    .from(templateVersions)
-    .where(eq(templateVersions.id, version_id))
-    .limit(1);
+    const [ver] = await tx
+      .select()
+      .from(templateVersions)
+      .where(eq(templateVersions.id, version_id))
+      .limit(1);
 
-  if (!ver || ver.templateId !== id) throw new NotFoundError('Version');
+    if (!ver || ver.templateId !== id) throw new NotFoundError('Version');
 
-  // Save current version to history
-  await db.insert(templateVersions).values({
-    templateId: id,
-    version: existing.version,
-    htmlContent: existing.htmlContent,
-    schema: existing.schema,
+    await tx.insert(templateVersions).values({
+      templateId: id,
+      version: existing.version,
+      htmlContent: existing.htmlContent,
+      schema: existing.schema,
+    });
+
+    const [row] = await tx
+      .update(templates)
+      .set({
+        htmlContent: ver.htmlContent,
+        schema: ver.schema,
+        version: existing.version + 1,
+        updatedAt: new Date(),
+      })
+      .where(eq(templates.id, id))
+      .returning();
+    return { updated: row, restoredFrom: ver.version };
   });
 
-  // Restore
-  const [updated] = await db
-    .update(templates)
-    .set({
-      htmlContent: ver.htmlContent,
-      schema: ver.schema,
-      version: existing.version + 1,
-      updatedAt: new Date(),
-    })
-    .where(eq(templates.id, id))
-    .returning();
-
   return c.json({
-    id: updated.id,
-    name: updated.name,
-    html_content: updated.htmlContent,
-    version: updated.version,
-    restored_from: ver.version,
+    id: result.updated.id,
+    name: result.updated.name,
+    html_content: result.updated.htmlContent,
+    version: result.updated.version,
+    restored_from: result.restoredFrom,
   });
 });
 
@@ -280,21 +286,22 @@ app.delete('/:id', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
 
-  const [existing] = await db
-    .select()
-    .from(templates)
-    .where(and(eq(templates.id, id), eq(templates.userId, user.id)))
-    .limit(1);
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(templates)
+      .where(and(eq(templates.id, id), eq(templates.userId, user.id)))
+      .limit(1);
 
-  if (!existing) throw new NotFoundError('Template');
+    if (!existing) throw new NotFoundError('Template');
 
-  // Nullify templateId on related generations to avoid FK constraint
-  await db
-    .update(generations)
-    .set({ templateId: null })
-    .where(eq(generations.templateId, id));
+    await tx
+      .update(generations)
+      .set({ templateId: null })
+      .where(eq(generations.templateId, id));
 
-  await db.delete(templates).where(eq(templates.id, id));
+    await tx.delete(templates).where(eq(templates.id, id));
+  });
 
   return c.json({ deleted: true });
 });

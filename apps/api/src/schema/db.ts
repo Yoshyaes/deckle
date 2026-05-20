@@ -113,8 +113,12 @@ export const usageDaily = pgTable(
 
 export const stripeCustomers = pgTable('stripe_customers', {
   id: uuid('id').defaultRandom().primaryKey(),
+  // RESTRICT: deleting a user with an attached Stripe customer must
+  // surface an error so the admin can cancel the subscription in
+  // Stripe first. CASCADE would vaporize billing history while
+  // Stripe kept charging the saved card.
   userId: uuid('user_id')
-    .references(() => users.id, { onDelete: 'cascade' })
+    .references(() => users.id, { onDelete: 'restrict' })
     .notNull()
     .unique(),
   stripeCustomerId: varchar('stripe_customer_id', { length: 255 }).notNull().unique(),
@@ -127,7 +131,7 @@ export const stripeCustomers = pgTable('stripe_customers', {
 export const stripeSubscriptions = pgTable('stripe_subscriptions', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id')
-    .references(() => users.id, { onDelete: 'cascade' })
+    .references(() => users.id, { onDelete: 'restrict' })
     .notNull(),
   stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }).notNull().unique(),
   stripePriceId: varchar('stripe_price_id', { length: 255 }).notNull(),

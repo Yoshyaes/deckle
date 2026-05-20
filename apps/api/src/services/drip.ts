@@ -92,42 +92,58 @@ function buildContext(email: string): TemplateContext {
 }
 
 /**
- * Enqueue a drip email. Safe to call multiple times — idempotency is
- * enforced by a unique (user, campaign) row in email_events. If a row
- * already exists for this (user, campaign), returns without enqueueing.
+ * Enqueue a drip email. Idempotency is enforced by the partial unique
+ * index on email_events (user_id, campaign) WHERE campaign <>
+ * 'reengagement' (see drizzle/0004). For non-reengagement campaigns
+ * we run the row insert + the BullMQ enqueue inside a transaction so
+ * a crash between them can't leave a queued row that never gets a
+ * job, and the unique index prevents the previous check-then-insert
+ * race that sent duplicate welcomes under concurrency.
  */
 export async function enqueueDripEmail(input: DripJob): Promise<void> {
-  // Check whether this (user, campaign) has already been queued/sent
-  const existing = await db
-    .select({ id: emailEvents.id, status: emailEvents.status })
-    .from(emailEvents)
-    .where(
-      and(
-        eq(emailEvents.userId, input.userId),
-        eq(emailEvents.campaign, input.campaign),
-      ),
-    )
-    .limit(1);
+  const enqueued = await db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: emailEvents.id, status: emailEvents.status })
+      .from(emailEvents)
+      .where(
+        and(
+          eq(emailEvents.userId, input.userId),
+          eq(emailEvents.campaign, input.campaign),
+        ),
+      )
+      .limit(1);
 
-  if (existing.length > 0 && existing[0].status !== 'failed') {
-    return; // already sent, queued, or deliberately skipped
+    if (existing.length > 0 && existing[0].status !== 'failed') {
+      return false; // already sent, queued, or deliberately skipped
+    }
+
+    if (existing.length === 0) {
+      // onConflictDoNothing guards against the race with the unique
+      // index on non-reengagement campaigns. If a concurrent insert
+      // beat us, returning() is empty and we skip the enqueue.
+      const inserted = await tx
+        .insert(emailEvents)
+        .values({
+          userId: input.userId,
+          campaign: input.campaign,
+          status: 'queued',
+        })
+        .onConflictDoNothing()
+        .returning({ id: emailEvents.id });
+
+      if (inserted.length === 0) return false;
+    } else {
+      await tx
+        .update(emailEvents)
+        .set({ status: 'queued', errorMessage: null })
+        .where(eq(emailEvents.id, existing[0].id));
+    }
+    return true;
+  });
+
+  if (enqueued) {
+    await dripQueue.add(`${input.campaign}:${input.userId}`, input);
   }
-
-  if (existing.length === 0) {
-    await db.insert(emailEvents).values({
-      userId: input.userId,
-      campaign: input.campaign,
-      status: 'queued',
-    });
-  } else {
-    // Was failed — reset to queued for another attempt.
-    await db
-      .update(emailEvents)
-      .set({ status: 'queued', errorMessage: null })
-      .where(eq(emailEvents.id, existing[0].id));
-  }
-
-  await dripQueue.add(`${input.campaign}:${input.userId}`, input);
 }
 
 /**
