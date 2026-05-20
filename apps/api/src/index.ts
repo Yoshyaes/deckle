@@ -16,6 +16,7 @@ import { loggingMiddleware } from './middleware/logging.js';
 import { authMiddleware } from './middleware/auth.js';
 import { rateLimitMiddleware } from './middleware/rateLimit.js';
 import { ipRateLimitMiddleware } from './middleware/ipRateLimit.js';
+import { securityHeadersMiddleware } from './middleware/securityHeaders.js';
 import { AppError, errorResponse } from './lib/errors.js';
 import { browserPool } from './services/renderer.js';
 import { recordApiError } from './services/api-errors.js';
@@ -49,6 +50,7 @@ app.use('*', cors({
   exposeHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
 }));
 app.use('*', loggingMiddleware);
+app.use('*', securityHeadersMiddleware);
 
 // IP-based rate limiting for public routes
 app.use('/v1/starter-templates/*', ipRateLimitMiddleware);

@@ -62,7 +62,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 class BrowserPool {
   private browsers: BrowserEntry[] = [];
   private maxBrowsers = 3;
-  private maxUsagePerBrowser = 100;
+  // Lowered from 100 to 20 per audit-02: with --no-sandbox Chromium
+  // and a shared browser pool, a cross-tenant Chromium-bug exploit
+  // can compromise the next user's render. Recycling every ~20
+  // renders reduces the blast radius significantly without
+  // dominating end-to-end latency (a fresh browser launch is ~600ms
+  // and amortizes over 20 renders ≈ +30ms each).
+  private maxUsagePerBrowser = 20;
   private currentIndex = 0;
   private initPromise: Promise<void> | null = null;
   private shuttingDown = false;
