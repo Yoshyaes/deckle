@@ -395,11 +395,22 @@ class DocuForge:
         width: Optional[float] = None,
         height: Optional[float] = None,
         output: str = "url",
+        signature: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
-        """Add a VISUAL signature annotation (not a cryptographic signature).
+        """Sign a PDF.
 
-        Returns a payload with ``signature_annotation_added: True``.
-        Cryptographic signing is on the roadmap.
+        Without ``signature``: adds a VISUAL annotation only. The response
+        carries ``signature_annotation_added=True`` and
+        ``cryptographically_signed=False``.
+
+        With ``signature``: also embeds a real PAdES-B-B cryptographic
+        signature using the caller-supplied PKCS#12 credential. The
+        ``signature`` dict must contain:
+          - ``p12`` (str): base64-encoded P12/PFX blob (max 100 KB decoded)
+          - ``password`` (str, optional): P12 passphrase, "" for unprotected
+
+        The P12 blob is sent over TLS and used ephemerally — DocuForge
+        does not persist it.
         """
         body: Dict[str, Any] = {"pdf": pdf, "name": name, "output": output}
         for k, v in [
@@ -414,6 +425,8 @@ class DocuForge:
         ]:
             if v is not None:
                 body[k] = v
+        if signature is not None:
+            body["signature"] = signature
         return self._request("POST", "/v1/pdf/sign", json=body)
 
     def pdf_protect(

@@ -368,10 +368,13 @@ export class DocuForge {
     },
 
     /**
-     * Add a visual signature annotation (image overlay + reason /
-     * location / contact metadata). NOT a cryptographic signature —
-     * the resulting PDF is not tamper-evident. Cryptographic signing
-     * is on the roadmap.
+     * Sign a PDF. By default this is a VISUAL annotation only (image
+     * overlay + reason / location / contact metadata). If `signature`
+     * is supplied with a PKCS#12 credential, a real PAdES-B-B
+     * cryptographic signature is also embedded — the resulting PDF
+     * is tamper-evident and verifiable in Acrobat, Foxit, etc. The
+     * P12 blob is sent over TLS and used ephemerally; it is not
+     * persisted server-side.
      */
     signAnnotation: async (
       params: PdfSignAnnotationParams,

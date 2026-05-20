@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { mergePdfs, splitPdf, getPdfInfo } from '../services/pdf-utils.js';
 import { fillFormFields, addFormFields, listFormFields } from '../services/pdf-forms.js';
 import { addSignature } from '../services/pdf-sign.js';
+import { signPdfWithP12 } from '../services/pdf-sign-crypto.js';
 import { makePdfA } from '../services/pdf-a.js';
 import { protectPdf, isQpdfAvailable } from '../services/pdf-protect.js';
 import { uploadPdf } from '../services/storage.js';
@@ -288,12 +289,20 @@ app.post('/forms/list-fields', async (c) => {
 });
 
 /**
- * POST /sign - Add a visual signature annotation to a PDF.
+ * POST /sign - Sign a PDF.
  *
- * This is a visual overlay (signature image + reason/location/contact
- * metadata) — NOT a cryptographic digital signature. The response field
- * `signature_annotation_added` reflects that. Cryptographic PAdES/CAdES
- * signing requires a separate code path that is not yet implemented.
+ * Two modes, controlled by the optional `signature` field:
+ *  - Without `signature`: only a VISUAL annotation is drawn (image
+ *    overlay + reason / location / contact metadata). The response
+ *    field `signature_annotation_added: true` makes that explicit.
+ *  - With `signature`: a real PAdES-B-B cryptographic signature is
+ *    embedded using the caller-supplied PKCS#12 (P12) credential.
+ *    The response also includes `cryptographically_signed: true` and
+ *    `signature_type: "PAdES-B-B"`.
+ *
+ * The P12 blob is used ephemerally — it's never persisted, logged,
+ * or sent to any third party. We hold the bytes for one render, then
+ * GC takes over.
  */
 const signSchema = z.object({
   pdf: z.string().max(MAX_PDF_BASE64_SIZE),
@@ -307,6 +316,18 @@ const signSchema = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   output: z.enum(['url', 'base64']).default('url'),
+  /**
+   * Cryptographic signing material. If omitted, only a visual annotation
+   * is added.
+   */
+  signature: z
+    .object({
+      /** PKCS#12 (P12 / PFX) blob, base64-encoded. Max 100 KB. */
+      p12: z.string().min(1).max(200_000),
+      /** P12 passphrase. Use empty string for unprotected P12s. */
+      password: z.string().default(''),
+    })
+    .optional(),
 });
 
 app.post('/sign', async (c) => {
@@ -316,26 +337,38 @@ app.post('/sign', async (c) => {
     throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
-  const { pdf, output, ...signOpts } = parsed.data;
+  const { pdf, output, signature, ...signOpts } = parsed.data;
   validateBase64Size(pdf);
   const buffer = Buffer.from(pdf, 'base64');
-  const result = await addSignature(buffer, signOpts);
 
-  if (output === 'base64') {
-    return c.json({
-      data: result.toString('base64'),
-      file_size: result.length,
-      signature_annotation_added: true,
+  // Visual annotation first so the crypto signature covers it.
+  let working = await addSignature(buffer, signOpts);
+
+  let cryptographicallySigned = false;
+  if (signature) {
+    const p12 = Buffer.from(signature.p12, 'base64');
+    working = await signPdfWithP12(working, p12, signature.password, {
+      name: signOpts.name,
+      reason: signOpts.reason,
+      location: signOpts.location,
+      contactInfo: signOpts.contact,
     });
+    cryptographicallySigned = true;
   }
 
-  const id = genId();
-  const url = await uploadPdf(id, result);
-  return c.json({
-    url,
-    file_size: result.length,
+  const responseBody = {
+    file_size: working.length,
     signature_annotation_added: true,
-  });
+    cryptographically_signed: cryptographicallySigned,
+    ...(cryptographicallySigned && { signature_type: 'PAdES-B-B' as const }),
+  };
+
+  if (output === 'base64') {
+    return c.json({ data: working.toString('base64'), ...responseBody });
+  }
+  const id = genId();
+  const url = await uploadPdf(id, working);
+  return c.json({ url, ...responseBody });
 });
 
 /**

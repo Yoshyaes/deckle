@@ -178,21 +178,29 @@ module DocuForge
       request(:post, "/v1/pdf/pdfa", body: body)
     end
 
-    # Add a VISUAL signature annotation. Not a cryptographic signature
-    # — the resulting PDF is not tamper-evident. Cryptographic signing
-    # is on the roadmap.
+    # Sign a PDF.
+    #
+    # Without :signature → adds a VISUAL annotation only. Response has
+    # signature_annotation_added=true and cryptographically_signed=false.
+    #
+    # With :signature → also embeds a real PAdES-B-B cryptographic
+    # signature. :signature must be a hash with:
+    #   :p12      base64-encoded PKCS#12 (P12/PFX) blob, max 100 KB decoded
+    #   :password P12 passphrase ("" for unprotected P12s)
+    # The P12 is sent over TLS and used ephemerally — never persisted.
     def pdf_sign_annotation(pdf:, name:, reason: nil, location: nil, contact: nil,
                             page: nil, x: nil, y: nil, width: nil, height: nil,
-                            output: "url")
+                            output: "url", signature: nil)
       body = { "pdf" => pdf, "name" => name, "output" => output }
-      body["reason"]   = reason   unless reason.nil?
-      body["location"] = location unless location.nil?
-      body["contact"]  = contact  unless contact.nil?
-      body["page"]     = page     unless page.nil?
-      body["x"]        = x        unless x.nil?
-      body["y"]        = y        unless y.nil?
-      body["width"]    = width    unless width.nil?
-      body["height"]   = height   unless height.nil?
+      body["reason"]    = reason    unless reason.nil?
+      body["location"]  = location  unless location.nil?
+      body["contact"]   = contact   unless contact.nil?
+      body["page"]      = page      unless page.nil?
+      body["x"]         = x         unless x.nil?
+      body["y"]         = y         unless y.nil?
+      body["width"]     = width     unless width.nil?
+      body["height"]    = height    unless height.nil?
+      body["signature"] = signature unless signature.nil?
       request(:post, "/v1/pdf/sign", body: body)
     end
 

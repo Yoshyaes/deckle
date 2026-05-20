@@ -352,29 +352,44 @@ type PdfToPdfAParams struct {
 	Output  string `json:"output,omitempty"`
 }
 
-// PdfSignAnnotationParams configures /v1/pdf/sign.
-type PdfSignAnnotationParams struct {
-	PDF      string  `json:"pdf"`
-	Name     string  `json:"name"`
-	Reason   string  `json:"reason,omitempty"`
-	Location string  `json:"location,omitempty"`
-	Contact  string  `json:"contact,omitempty"`
-	Page     *int    `json:"page,omitempty"`
-	X        *float64 `json:"x,omitempty"`
-	Y        *float64 `json:"y,omitempty"`
-	Width    *float64 `json:"width,omitempty"`
-	Height   *float64 `json:"height,omitempty"`
-	Output   string  `json:"output,omitempty"`
+// PdfSignSignatureMaterial is the optional cryptographic-signing payload
+// for /v1/pdf/sign. When set, the API embeds a PAdES-B-B signature in
+// addition to the visual annotation. The P12 blob is used ephemerally.
+type PdfSignSignatureMaterial struct {
+	// P12 is the PKCS#12 (P12 / PFX) credential, base64-encoded.
+	// Max 100 KB decoded.
+	P12 string `json:"p12"`
+	// Password is the P12 passphrase; "" for unprotected P12s.
+	Password string `json:"password,omitempty"`
 }
 
-// PdfSignAnnotationResponse is returned by /v1/pdf/sign. The
-// SignatureAnnotationAdded field reflects the fact that this is a
-// visual annotation only, not a cryptographic signature.
+// PdfSignAnnotationParams configures /v1/pdf/sign.
+type PdfSignAnnotationParams struct {
+	PDF       string                    `json:"pdf"`
+	Name      string                    `json:"name"`
+	Reason    string                    `json:"reason,omitempty"`
+	Location  string                    `json:"location,omitempty"`
+	Contact   string                    `json:"contact,omitempty"`
+	Page      *int                      `json:"page,omitempty"`
+	X         *float64                  `json:"x,omitempty"`
+	Y         *float64                  `json:"y,omitempty"`
+	Width     *float64                  `json:"width,omitempty"`
+	Height    *float64                  `json:"height,omitempty"`
+	Output    string                    `json:"output,omitempty"`
+	Signature *PdfSignSignatureMaterial `json:"signature,omitempty"`
+}
+
+// PdfSignAnnotationResponse is returned by /v1/pdf/sign.
+// SignatureAnnotationAdded is true on every successful response (a
+// visual overlay is always drawn). CryptographicallySigned is true
+// only when the request included Signature.
 type PdfSignAnnotationResponse struct {
 	URL                       string `json:"url,omitempty"`
 	Data                      string `json:"data,omitempty"`
 	FileSize                  int64  `json:"file_size"`
 	SignatureAnnotationAdded  bool   `json:"signature_annotation_added"`
+	CryptographicallySigned   bool   `json:"cryptographically_signed"`
+	SignatureType             string `json:"signature_type,omitempty"`
 }
 
 // PdfProtectPermissions controls /v1/pdf/protect's PDF restriction flags.

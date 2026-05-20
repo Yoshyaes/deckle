@@ -231,17 +231,32 @@ export interface PdfSignAnnotationParams {
   width?: number;
   height?: number;
   output?: 'url' | 'base64';
+  /**
+   * Optional cryptographic signing material. If supplied, the response
+   * will include a PAdES-B-B signature in addition to the visual
+   * annotation. The P12 blob is used ephemerally — it is not stored.
+   */
+  signature?: {
+    /** PKCS#12 (P12 / PFX) credential, base64-encoded. Max 100 KB decoded. */
+    p12: string;
+    /** P12 passphrase. Pass an empty string for unprotected P12s. */
+    password?: string;
+  };
 }
 
 export interface PdfSignAnnotationResponse {
   url?: string;
   data?: string;
   file_size: number;
-  /**
-   * Visual annotation only — not a cryptographic signature. See
-   * docs/api-reference/pdf-sign for the security implications.
-   */
+  /** Visual annotation was drawn. Always true on a successful response. */
   signature_annotation_added: boolean;
+  /**
+   * True if a cryptographic signature was embedded (caller supplied
+   * `signature` in the request). False for visual-only signings.
+   */
+  cryptographically_signed: boolean;
+  /** Present when cryptographically_signed=true. */
+  signature_type?: 'PAdES-B-B';
 }
 
 export interface PdfProtectPermissions {
