@@ -365,18 +365,29 @@ export function AdminOverviewClient() {
                   <th className="py-2 font-medium">Plan</th>
                   <th className="py-2 font-medium">Signed up</th>
                   <th className="py-2 font-medium">Keys</th>
+                  <th className="py-2 font-medium">Last error</th>
                   <th className="py-2 font-medium text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {stuck.map((u) => (
-                  <tr key={u.id} className="border-t border-border-subtle">
+                  <tr key={u.id} className="border-t border-border-subtle align-top">
                     <td className="py-2 text-text-primary">{u.email}</td>
                     <td className="py-2 text-text-muted capitalize">{u.plan}</td>
                     <td className="py-2 text-text-muted">
                       {new Date(u.created_at).toLocaleDateString()}
                     </td>
                     <td className="py-2 text-text-muted">{u.key_count}</td>
+                    <td
+                      className="py-2 text-text-dim max-w-[260px] truncate"
+                      title={u.first_error_message ?? undefined}
+                    >
+                      {u.first_error_message ? (
+                        <span className="text-red">{u.first_error_message}</span>
+                      ) : (
+                        <span className="text-text-dim italic">no failed call yet</span>
+                      )}
+                    </td>
                     <td className="py-2 text-right">
                       <Link
                         href={`/admin/users/${u.id}`}
