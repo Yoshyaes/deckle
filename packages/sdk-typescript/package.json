@@ -21,18 +21,29 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap",
     "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm run typecheck"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm run typecheck && npm run test"
   },
-  "keywords": ["pdf", "html-to-pdf", "pdf-generation", "api", "docuforge"],
+  "keywords": [
+    "pdf",
+    "html-to-pdf",
+    "pdf-generation",
+    "api",
+    "docuforge"
+  ],
   "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.4",
+    "@types/node": "^20",
     "tsup": "^8",
-    "@types/node": "^20"
+    "typescript": "^5.4",
+    "vitest": "^4.0.18"
   }
 }
