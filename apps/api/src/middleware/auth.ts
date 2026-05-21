@@ -59,12 +59,16 @@ export const authMiddleware = createMiddleware(async (c, next) => {
   const authHeader = c.req.header('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     throw new AuthError(
-      "Missing or invalid Authorization header. Add: Authorization: Bearer dk_live_… (must start with dk_live_).",
+      "Missing or invalid Authorization header. Add: Authorization: Bearer dk_live_… (must start with dk_live_ or df_live_).",
     );
   }
 
   const token = authHeader.slice(7);
-  if (!token || !token.startsWith('dk_live_')) {
+  // Accept both prefixes during the DocuForge → Deckle transition.
+  // Why: existing df_live_ keys (stored in the DB) must keep working after
+  // the rebrand. New keys get dk_live_. Plan to drop df_live_ acceptance
+  // after a 30+ day transition window.
+  if (!token || (!token.startsWith('dk_live_') && !token.startsWith('df_live_'))) {
     throw new AuthError(
       "API key has the wrong format. It should start with dk_live_ (32+ chars). Find or create one at https://app.getdeckle.dev/keys.",
     );

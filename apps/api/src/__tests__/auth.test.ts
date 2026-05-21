@@ -163,6 +163,19 @@ describe('Auth middleware', () => {
     expect(body.user.plan).toBe('pro');
   });
 
+  it('accepts legacy df_live_ prefix during rebrand transition', async () => {
+    (mockLimit as any)._returnValue = Promise.resolve([
+      { keyId: 'key1', keyHash: 'hash1', userId: 'usr_1', email: 'test@test.com', plan: 'free' },
+    ]);
+    (bcrypt.compare as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+
+    const app = createApp();
+    const res = await app.request('/test', {
+      headers: { Authorization: 'Bearer df_live_abcdefgh12345678rest' },
+    });
+    expect(res.status).toBe(200);
+  });
+
   describe('Service-to-service auth', () => {
     it('succeeds with valid service secret and user ID', async () => {
       process.env.DASHBOARD_SERVICE_SECRET = 'svc_secret_long_1234567890';

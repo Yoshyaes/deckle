@@ -176,7 +176,7 @@ app.onError((err, c) => {
     let keyPrefix: string | null = null;
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
-      if (token.startsWith('dk_live_')) {
+      if (token.startsWith('dk_live_') || token.startsWith('df_live_')) {
         keyPrefix = token.slice(0, 16);
       }
     }
