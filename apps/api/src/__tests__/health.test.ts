@@ -12,7 +12,7 @@ describe('Health endpoint', () => {
 
     const body = await res.json();
     expect(body.status).toBe('ok');
-    expect(body.version).toBe('0.1.0');
+    expect(body.version).toBe('1.0.0');
     expect(body.timestamp).toBeDefined();
   });
 });
