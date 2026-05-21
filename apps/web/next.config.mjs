@@ -1,15 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // output: 'standalone', // Enable for Docker deployment
-  async rewrites() {
+  async redirects() {
     return [
       {
         source: '/docs',
-        destination: 'https://fred-7da601c6.mintlify.app',
+        destination: 'https://docs.getdocuforge.dev',
+        permanent: true,
       },
       {
         source: '/docs/:path*',
-        destination: 'https://fred-7da601c6.mintlify.app/:path*',
+        destination: 'https://docs.getdocuforge.dev/:path*',
+        permanent: true,
       },
     ];
   },
