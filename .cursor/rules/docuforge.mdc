@@ -1,3 +1,8 @@
+---
+description: DocuForge PDF generation SDK usage guidance — imports, initialization, generate/template calls, response shape, formats, free-tier limits, and security notes.
+alwaysApply: false
+---
+
 When using DocuForge for PDF generation:
 - Import: import { DocuForge } from 'docuforge'
 - Initialize with API key: const df = new DocuForge(process.env.DOCUFORGE_API_KEY)
