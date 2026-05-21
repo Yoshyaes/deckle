@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "deckle"
-version = "0.5.0"
+version = "1.0.0"
 description = "Deckle - PDF generation API for developers. HTML in, pixel-perfect PDF out."
 readme = "README.md"
 license = "MIT"
