@@ -72,7 +72,7 @@ export default function DpaPage() {
             <h2 className="text-xl font-semibold text-text-primary mb-3">Self-hosting</h2>
             <p>
               If you run DocuForge from{' '}
-              <a href="/docs" className="text-accent hover:underline">
+              <a href="https://docs.getdocuforge.dev" className="text-accent hover:underline">
                 our open-source repo
               </a>{' '}
               on your own infrastructure, you are the data controller AND processor for your end

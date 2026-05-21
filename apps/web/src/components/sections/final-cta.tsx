@@ -22,7 +22,7 @@ export function FinalCta() {
             <Button
               variant="secondary"
               size="lg"
-              href="/docs"
+              href="https://docs.getdocuforge.dev"
             >
               Read the Docs
             </Button>

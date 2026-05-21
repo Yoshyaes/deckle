@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 
 const navLinks = [
   { label: 'Features', href: '/#features' },
-  { label: 'Docs', href: '/docs' },
+  { label: 'Docs', href: 'https://docs.getdocuforge.dev' },
   { label: 'Blog', href: '/blog' },
   { label: 'Pricing', href: '/#pricing' },
 ];

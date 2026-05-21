@@ -7,8 +7,8 @@ const columns = [
     links: [
       { label: 'Features', href: '/#features' },
       { label: 'Pricing', href: '/pricing' },
-      { label: 'Documentation', href: '/docs' },
-      { label: 'API Reference', href: '/docs/api-reference/generate' },
+      { label: 'Documentation', href: 'https://docs.getdocuforge.dev' },
+      { label: 'API Reference', href: 'https://docs.getdocuforge.dev/api-reference/generate' },
       { label: 'Changelog', href: '/blog' },
     ],
   },
@@ -16,7 +16,7 @@ const columns = [
     title: 'Resources',
     links: [
       { label: 'Blog', href: '/blog' },
-      { label: 'Guides', href: '/docs/guides/nextjs' },
+      { label: 'Guides', href: 'https://docs.getdocuforge.dev/guides/nextjs' },
       { label: 'Templates', href: 'https://app.getdocuforge.dev/templates/gallery' },
       { label: 'Status', href: '/status' },
     ],
