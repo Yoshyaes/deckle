@@ -16,8 +16,8 @@ import { eq, and } from 'drizzle-orm';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
-function parseRedisConnection() {
-  const url = new URL(REDIS_URL);
+export function parseRedisConnection(redisUrl: string = REDIS_URL) {
+  const url = new URL(redisUrl);
   const conn: Record<string, unknown> = {
     host: url.hostname,
     port: parseInt(url.port || '6379'),
