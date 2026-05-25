@@ -19,7 +19,7 @@ interface WebhookPayload {
 /**
  * Check if an IP address is in a private/reserved range (SSRF protection).
  */
-function isPrivateIp(ip: string): boolean {
+export function isPrivateIp(ip: string): boolean {
   // Handle IPv4-mapped IPv6 addresses (e.g., ::ffff:127.0.0.1)
   if (/^::ffff:/i.test(ip)) {
     return isPrivateIp(ip.replace(/^::ffff:/i, ''));
@@ -42,7 +42,7 @@ function isPrivateIp(ip: string): boolean {
 /**
  * Validate that a webhook URL does not point to a private/internal address.
  */
-async function validateWebhookUrl(url: string): Promise<void> {
+export async function validateWebhookUrl(url: string): Promise<void> {
   const parsed = new URL(url);
   const hostname = parsed.hostname;
 
