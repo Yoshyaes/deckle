@@ -15,7 +15,7 @@ const WINDOW_MS = 60_000; // 1 minute
  * entry of x-forwarded-for (skipping the trusted proxy hop count) to support
  * multi-hop setups where the load balancer appends to the header.
  */
-function extractClientIp(c: Context): string {
+export function extractClientIp(c: Context): string {
   // x-real-ip is set by nginx/caddy to the true client IP — prefer it.
   const realIp = c.req.header('x-real-ip');
   if (realIp) return realIp.trim();
