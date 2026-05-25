@@ -143,4 +143,97 @@ describe('React renderer', () => {
     expect(html).toContain('<body>');
     expect(html).toContain('</html>');
   });
+
+  it('child process cannot read secrets from the parent env', async () => {
+    // Set a fake secret in the parent's environment.
+    process.env.SHOULD_NOT_LEAK = 'super-secret-value';
+    try {
+      // Defensively probe for process.env; do NOT throw if process is undefined.
+      // If the secret leaks we'd see it in the rendered HTML.
+      const source = `
+        const val = (typeof process !== 'undefined' && process && process.env && process.env.SHOULD_NOT_LEAK)
+          ? process.env.SHOULD_NOT_LEAK
+          : 'NOT_SET';
+        export default function Test() { return <span>{val}</span>; }
+      `;
+      const html = await renderReactToHtml(source);
+      expect(html).toContain('<span>NOT_SET</span>');
+      expect(html).not.toContain('super-secret-value');
+    } finally {
+      delete process.env.SHOULD_NOT_LEAK;
+    }
+  });
+
+  it('worker rejects child_process require', async () => {
+    const source = `
+      const cp = require('child_process');
+      export default function Test() { return <div>x</div>; }
+    `;
+    await expect(renderReactToHtml(source)).rejects.toThrow();
+  });
+
+  it('worker rejects require("net") / network primitives', async () => {
+    const source = `
+      const net = require('net');
+      export default function Test() { return <div>x</div>; }
+    `;
+    await expect(renderReactToHtml(source)).rejects.toThrow();
+  });
+
+  it('Function constructor is unavailable in sandbox', async () => {
+    const source = `
+      export default function Test() {
+        const fn = new Function('return 1');
+        return <div>{fn()}</div>;
+      }
+    `;
+    // Function is set to undefined in the inner context
+    await expect(renderReactToHtml(source)).rejects.toThrow();
+  });
+
+  it('eval is unavailable in sandbox', async () => {
+    const source = `
+      export default function Test() {
+        eval('1+1');
+        return <div>x</div>;
+      }
+    `;
+    await expect(renderReactToHtml(source)).rejects.toThrow();
+  });
+
+  it('renders concurrent requests in independent child processes', async () => {
+    // Two concurrent renders must not interfere with each other.
+    const src = (label: string) => `
+      export default function L() { return <span>${label}</span>; }
+    `;
+    const [a, b] = await Promise.all([
+      renderReactToHtml(src('alpha')),
+      renderReactToHtml(src('bravo')),
+    ]);
+    expect(a).toContain('<span>alpha</span>');
+    expect(b).toContain('<span>bravo</span>');
+  });
+
+  it('renders React.Fragment correctly', async () => {
+    const source = `
+      export default function Frag() {
+        return <><span>a</span><span>b</span></>;
+      }
+    `;
+    const html = await renderReactToHtml(source);
+    expect(html).toContain('<span>a</span>');
+    expect(html).toContain('<span>b</span>');
+  });
+
+  it('renders TypeScript-only syntax (type annotations)', async () => {
+    const source = `
+      interface Props { name: string }
+      export default function Hi(props: Props) {
+        const s: string = "ts ok: " + props.name;
+        return <p>{s}</p>;
+      }
+    `;
+    const html = await renderReactToHtml(source, { name: 'x' });
+    expect(html).toContain('ts ok: x');
+  });
 });
