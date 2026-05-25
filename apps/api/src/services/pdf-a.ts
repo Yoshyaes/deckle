@@ -57,6 +57,9 @@ export async function makePdfA(buffer: Buffer, options?: {
   });
   doc.catalog.set(PDFName.of('MarkInfo'), markInfoDict);
 
+  // Note: pdf-lib's save() unconditionally overwrites the /Producer field
+  // (see updateInfoDict in pdf-lib's PDFDocument). Our PDF/A producer string
+  // is recorded authoritatively in the XMP metadata stream above.
   const bytes = await doc.save();
   return Buffer.from(bytes);
 }
