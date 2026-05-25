@@ -18,13 +18,13 @@ Supabase gives you a Postgres database with a great API. Deckle gives you pixel-
 ## Setup
 
 ```bash
-npm install deckle @supabase/supabase-js
+npm install @getdeckle/sdk @supabase/supabase-js
 ```
 
 ## Querying Data and Generating PDFs
 
 ```typescript
-import Deckle from 'deckle';
+import Deckle from '@getdeckle/sdk';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);

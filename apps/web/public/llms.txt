@@ -10,7 +10,7 @@
 - [Full LLM Docs](https://getdeckle.dev/llms-full.txt)
 
 ## SDKs
-- TypeScript: `npm install deckle` — `Deckle` class with `generate()`, `fromTemplate()`, `fromReact()`, `batch()`, `templates.*`
+- TypeScript: `npm install @getdeckle/sdk` — `Deckle` class with `generate()`, `fromTemplate()`, `fromReact()`, `batch()`, `templates.*`
 - Python: `pip install deckle` — mirrors TS SDK API, uses httpx + Pydantic v2
 - Go: `go get github.com/Yoshyaes/deckle/packages/sdk-go` — stdlib net/http, functional options, context-based API
 - Ruby: `gem install deckle` — uses Faraday HTTP client, idiomatic Ruby API
@@ -66,7 +66,7 @@ Use `{{qr:data}}` and `{{barcode:data}}` placeholders in HTML. Replaced with inl
 
 ## Quick Example
 ```typescript
-import { Deckle } from 'deckle';
+import { Deckle } from '@getdeckle/sdk';
 const df = new Deckle('dk_live_...');
 const pdf = await df.generate({
   html: '<h1>Invoice #1234</h1>',

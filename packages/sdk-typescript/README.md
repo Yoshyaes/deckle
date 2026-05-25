@@ -5,13 +5,13 @@ PDF generation API for developers. HTML in, pixel-perfect PDF out.
 ## Installation
 
 ```bash
-npm install deckle
+npm install @getdeckle/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { Deckle } from 'deckle';
+import { Deckle } from '@getdeckle/sdk';
 
 const df = new Deckle('dk_live_...');
 
@@ -99,7 +99,7 @@ const pdf = await df.generate({
 ## Error Handling
 
 ```typescript
-import { Deckle, DeckleError, RateLimitError } from 'deckle';
+import { Deckle, DeckleError, RateLimitError } from '@getdeckle/sdk';
 
 try {
   const pdf = await df.generate({ html: '<h1>Hello</h1>' });

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { CodeBlock } from '@/components/ui/code-block';
 
-const heroCode = `import { Deckle } from 'deckle';
+const heroCode = `import { Deckle } from '@getdeckle/sdk';
 
 const client = new Deckle(process.env.DECKLE_API_KEY!);
 

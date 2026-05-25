@@ -61,13 +61,13 @@ Before handling any Stripe events, you need an invoice template stored in Deckle
 Install the dependencies first:
 
 ```bash
-npm install deckle stripe resend
+npm install @getdeckle/sdk stripe resend
 ```
 
 Here is a complete invoice template with professional styling:
 
 ```typescript
-import Deckle from "deckle";
+import Deckle from "@getdeckle/sdk";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
 
@@ -454,7 +454,7 @@ The mapping function handles the common edge cases: missing customer names, null
 With the template created and the Stripe data mapped, generating the PDF is a single SDK call. The `fromTemplate` method accepts the template ID and a data object that fills in the Handlebars placeholders.
 
 ```typescript
-import Deckle from "deckle";
+import Deckle from "@getdeckle/sdk";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
 
@@ -648,7 +648,7 @@ Here is the consolidated code for the entire invoice system. This is a single Ne
 // app/api/webhooks/stripe/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import Deckle from "deckle";
+import Deckle from "@getdeckle/sdk";
 import { Resend } from "resend";
 
 // --- Clients ---

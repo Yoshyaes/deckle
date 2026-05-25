@@ -30,7 +30,7 @@ The simplest path is to grab HTML that is already on the page and send it to Dec
 Create an API route that accepts an HTML string and returns a PDF URL:
 
 ```ts title="app/api/pdf/route.ts"
-import { Deckle } from "deckle";
+import { Deckle } from "@getdeckle/sdk";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
 
@@ -141,7 +141,7 @@ export default function SalesReport({ data }) {
 Pass the component source and data to `fromReact()`:
 
 ```ts title="app/api/report/route.ts"
-import { Deckle } from "deckle";
+import { Deckle } from "@getdeckle/sdk";
 import { salesReportComponent } from "@/lib/pdf-templates/sales-report";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
@@ -516,7 +516,7 @@ export default function DashboardReport({ data }) {
 ### The API Route
 
 ```ts title="app/api/dashboard-report/route.ts"
-import { Deckle } from "deckle";
+import { Deckle } from "@getdeckle/sdk";
 import { dashboardReportComponent } from "@/lib/pdf-templates/dashboard-report";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);

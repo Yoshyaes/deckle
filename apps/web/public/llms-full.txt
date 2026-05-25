@@ -13,10 +13,10 @@ Deckle is a hosted PDF generation API. Send HTML or template data, get pixel-per
 
 ### TypeScript
 ```bash
-npm install deckle
+npm install @getdeckle/sdk
 ```
 ```typescript
-import { Deckle } from 'deckle';
+import { Deckle } from '@getdeckle/sdk';
 const df = new Deckle(process.env.DECKLE_API_KEY);
 ```
 

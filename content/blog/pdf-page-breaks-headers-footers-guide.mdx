@@ -80,7 +80,7 @@ This ensures at least three lines of any paragraph appear at the bottom of a pag
 Here is a complete example that combines all three techniques:
 
 ```typescript
-import Deckle from "deckle";
+import Deckle from "@getdeckle/sdk";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
 
@@ -363,7 +363,7 @@ function AnnualReport({ data }) {
 Pass the React component to `df.generate()` using the `react` source:
 
 ```typescript
-import Deckle from "deckle";
+import Deckle from "@getdeckle/sdk";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
 

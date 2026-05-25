@@ -12,14 +12,14 @@ You need a PDF endpoint in your Express app. Here's the fastest way to build one
 ## Install
 
 ```bash
-npm install deckle express
+npm install @getdeckle/sdk express
 ```
 
 ## The Entire Implementation
 
 ```typescript
 import express from 'express';
-import Deckle from 'deckle';
+import Deckle from '@getdeckle/sdk';
 
 const app = express();
 const deckle = new Deckle(process.env.DECKLE_API_KEY!);

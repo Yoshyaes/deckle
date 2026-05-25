@@ -4,7 +4,7 @@ alwaysApply: false
 ---
 
 When using Deckle for PDF generation:
-- Import: import { Deckle } from 'deckle'
+- Import: import { Deckle } from '@getdeckle/sdk'
 - Initialize with API key: const df = new Deckle(process.env.DECKLE_API_KEY)
 - Generate from HTML: await df.generate({ html: '...', options: { format: 'A4' } })
 - Generate from template: await df.fromTemplate({ template: 'tmpl_xxx', data: { ... } })

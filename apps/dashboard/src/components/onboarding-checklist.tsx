@@ -31,8 +31,8 @@ const SDK_TABS = [
   {
     id: 'ts',
     label: 'TypeScript',
-    install: 'npm install deckle',
-    code: `import { Deckle } from 'deckle';
+    install: 'npm install @getdeckle/sdk',
+    code: `import { Deckle } from '@getdeckle/sdk';
 
 // The constructor takes the API key as the first positional argument.
 const df = new Deckle(process.env.DECKLE_API_KEY!);

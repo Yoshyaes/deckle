@@ -7,7 +7,7 @@ Generate pixel-perfect PDFs from HTML or reusable templates. Full CSS support, s
 ## Quick Start
 
 ```typescript
-import { Deckle } from 'deckle';
+import { Deckle } from '@getdeckle/sdk';
 
 const df = new Deckle('dk_live_...');
 
@@ -81,7 +81,7 @@ For local development, the API server falls back to local filesystem storage whe
 ### TypeScript
 
 ```bash
-npm install deckle
+npm install @getdeckle/sdk
 ```
 
 ### Python

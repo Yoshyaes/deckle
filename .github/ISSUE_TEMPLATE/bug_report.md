@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug in Deckle or @deckle/react-pdf
+about: Report a bug in Deckle or @getdeckle/react-pdf
 title: "[Bug] "
 labels: bug
 assignees: ""
@@ -26,7 +26,7 @@ What actually happened. Include error messages or screenshots if applicable.
 
 ## Environment
 
-- Package: (e.g., `@deckle/react-pdf@0.1.0`, `deckle@0.1.0`)
+- Package: (e.g., `@getdeckle/react-pdf@0.1.0`, `deckle@0.1.0`)
 - Node.js version:
 - OS:
 - Browser (if applicable):

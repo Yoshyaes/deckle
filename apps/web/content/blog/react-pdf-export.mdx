@@ -12,7 +12,7 @@ Every React app eventually needs a "Download as PDF" button. Reports, invoices, 
 ## Install
 
 ```bash
-npm install deckle @deckle/react-pdf
+npm install @getdeckle/sdk @getdeckle/react-pdf
 ```
 
 ## Build Your PDF with React Components
@@ -20,7 +20,7 @@ npm install deckle @deckle/react-pdf
 Deckle provides React components specifically designed for PDF documents:
 
 ```tsx
-import { Document, Page, Header, Table } from '@deckle/react-pdf';
+import { Document, Page, Header, Table } from '@getdeckle/react-pdf';
 
 function InvoicePdf({ invoice }) {
   return (

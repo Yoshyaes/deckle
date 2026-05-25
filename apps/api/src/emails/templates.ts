@@ -76,7 +76,7 @@ export function welcomeEmail(ctx: TemplateContext): EmailTemplate {
       <p style="margin:0 0 8px 0;color:#9ca3af;font-size:13px;">When you're ready to call the API from your own code:</p>
       <ol style="margin:0 0 0 20px;padding:0;color:#9ca3af;font-size:13px;line-height:1.8;">
         <li><a href="${ctx.keysUrl}" style="color:#F97316;">Create an API key</a> (you'll see the plaintext once — copy it).</li>
-        <li>Install an SDK: <code style="background:#1a1a1d;padding:2px 6px;border-radius:4px;font-size:12px;">npm install deckle</code></li>
+        <li>Install an SDK: <code style="background:#1a1a1d;padding:2px 6px;border-radius:4px;font-size:12px;">npm install @getdeckle/sdk</code></li>
         <li>Call <code style="background:#1a1a1d;padding:2px 6px;border-radius:4px;font-size:12px;">df.generate({ html })</code>.</li>
       </ol>
       <p style="margin:20px 0 0 0;color:#6b7280;font-size:12px;">Questions? Just reply to this email.</p>

@@ -1,5 +1,5 @@
 {
-  "name": "@deckle/react-pdf",
+  "name": "@getdeckle/react-pdf",
   "version": "1.0.0",
   "description": "React components for building pixel-perfect PDF documents with Deckle",
   "type": "module",

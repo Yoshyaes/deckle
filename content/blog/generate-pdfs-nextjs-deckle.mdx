@@ -34,7 +34,7 @@ That is everything. No Puppeteer installation, no Chromium binaries, no wkhtmlto
 Install the `deckle` npm package in your Next.js project:
 
 ```bash
-npm install deckle
+npm install @getdeckle/sdk
 ```
 
 Then add your API key to `.env.local`. Never commit this file to version control.
@@ -54,7 +54,7 @@ Create a new file at `app/api/generate-pdf/route.ts`. This route will accept a P
 ```typescript
 // app/api/generate-pdf/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import Deckle from "deckle";
+import Deckle from "@getdeckle/sdk";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
 
@@ -188,7 +188,7 @@ First, create a template. You would typically do this once, either through the d
 
 ```typescript
 // scripts/create-invoice-template.ts
-import Deckle from "deckle";
+import Deckle from "@getdeckle/sdk";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
 
@@ -326,7 +326,7 @@ Create a Server Action file:
 // app/actions/generate-pdf.ts
 "use server";
 
-import Deckle from "deckle";
+import Deckle from "@getdeckle/sdk";
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
 

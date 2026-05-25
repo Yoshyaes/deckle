@@ -115,8 +115,8 @@
 
 This is the single most important thing you do this week. It starts generating AI training data immediately.
 
-- [x] Extract React PDF components into standalone package: `@deckle/react-pdf` *(already exists at `packages/react/` with 9 components, tsup build, dual ESM/CJS)*
-- [X] Publish to npm *(published as `@deckle/react-pdf@0.1.0`)*
+- [x] Extract React PDF components into standalone package: `@getdeckle/react-pdf` *(already exists at `packages/react/` with 9 components, tsup build, dual ESM/CJS)*
+- [X] Publish to npm *(published as `@getdeckle/react-pdf@0.1.0`)*
 - [x] Create GitHub repo with polished README *(repo live at `github.com/Yoshyaes/deckle`)*
 - [x] Add MIT license *(root `LICENSE` + `packages/react/LICENSE` both in place)*
 - [x] Write a solid `CONTRIBUTING.md` *(created at repo root)*
@@ -220,7 +220,7 @@ This is the single most important thing you do this week. It starts generating A
 - [ ] New signups
 - [ ] API keys generated
 - [ ] PDFs generated
-- [ ] GitHub stars on `@deckle/react-pdf`
+- [ ] GitHub stars on `@getdeckle/react-pdf`
 
 ---
 
@@ -283,7 +283,7 @@ Use Taz as your first enterprise customer. This gives you a real case study, for
 
 | Metric | Target |
 |--------|--------|
-| GitHub Stars (`@deckle/react-pdf`) | 5,000 |
+| GitHub Stars (`@getdeckle/react-pdf`) | 5,000 |
 | Registered Developers | 5,000 |
 | Monthly PDF Generations | 500,000 |
 | Paying Customers | 100 |

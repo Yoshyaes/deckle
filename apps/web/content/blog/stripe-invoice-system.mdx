@@ -22,13 +22,13 @@ A system that automatically generates a PDF invoice every time a Stripe payment 
 ## Setup
 
 ```bash
-npm install deckle stripe
+npm install @getdeckle/sdk stripe
 ```
 
 ## The Webhook Handler
 
 ```typescript
-import Deckle from 'deckle';
+import Deckle from '@getdeckle/sdk';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);

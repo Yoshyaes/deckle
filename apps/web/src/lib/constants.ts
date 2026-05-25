@@ -61,7 +61,7 @@ export const features = [
 ];
 
 export const codeExamples = {
-  html: `import { Deckle } from 'deckle';
+  html: `import { Deckle } from '@getdeckle/sdk';
 
 const client = new Deckle(process.env.DECKLE_API_KEY!);
 
@@ -80,7 +80,7 @@ const pdf = await client.generate({
 
 console.log(pdf.url); // https://cdn.getdeckle.dev/gen_abc123.pdf`,
 
-  react: `import { Deckle } from 'deckle';
+  react: `import { Deckle } from '@getdeckle/sdk';
 
 const client = new Deckle(process.env.DECKLE_API_KEY!);
 
@@ -115,7 +115,7 @@ const pdf = await client.fromReact({
 
 console.log(pdf.url);`,
 
-  template: `import { Deckle } from 'deckle';
+  template: `import { Deckle } from '@getdeckle/sdk';
 
 const client = new Deckle(process.env.DECKLE_API_KEY!);
 
@@ -159,11 +159,11 @@ console.log(pdf.url);`,
 };
 
 export const sdks = [
-  { name: 'TypeScript', package: 'npm i deckle', color: '#3178C6' },
+  { name: 'TypeScript', package: 'npm i @getdeckle/sdk', color: '#3178C6' },
   { name: 'Python', package: 'pip install deckle', color: '#3776AB' },
   { name: 'Go', package: 'go get github.com/Yoshyaes/deckle/packages/sdk-go', color: '#00ADD8' },
   { name: 'Ruby', package: 'gem install deckle', color: '#CC342D' },
-  { name: 'React', package: 'npm i @deckle/react-pdf', color: '#61DAFB' },
+  { name: 'React', package: 'npm i @getdeckle/react-pdf', color: '#61DAFB' },
 ];
 
 export const comparisonRows = [

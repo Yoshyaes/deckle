@@ -1,4 +1,4 @@
-# @deckle/react-pdf
+# @getdeckle/react-pdf
 
 React components for building pixel-perfect PDF documents with [Deckle](https://getdeckle.dev).
 
@@ -7,15 +7,15 @@ Compose documents using familiar React patterns — pages, headers, footers, tab
 ## Installation
 
 ```bash
-npm install @deckle/react-pdf
+npm install @getdeckle/react-pdf
 ```
 
 ```bash
-pnpm add @deckle/react-pdf
+pnpm add @getdeckle/react-pdf
 ```
 
 ```bash
-yarn add @deckle/react-pdf
+yarn add @getdeckle/react-pdf
 ```
 
 > **Peer dependency:** React 18 or later is required.
@@ -23,7 +23,7 @@ yarn add @deckle/react-pdf
 ## Quick Start
 
 ```tsx
-import { Document, Page, Header, Footer } from '@deckle/react-pdf';
+import { Document, Page, Header, Footer } from '@getdeckle/react-pdf';
 
 export default function MyDocument() {
   return (
@@ -281,7 +281,7 @@ import {
   Watermark,
   Barcode,
   Signature,
-} from '@deckle/react-pdf';
+} from '@getdeckle/react-pdf';
 
 interface InvoiceProps {
   data: {
@@ -374,14 +374,14 @@ Components render to HTML that the Deckle API converts to PDF via a headless bro
 ### With the TypeScript SDK
 
 ```typescript
-import { Deckle } from 'deckle';
+import { Deckle } from '@getdeckle/sdk';
 
 const df = new Deckle('dk_live_...');
 
 // Send a React component as a string
 const pdf = await df.fromReact({
   react: `
-    import { Document, Page, Header } from '@deckle/react-pdf';
+    import { Document, Page, Header } from '@getdeckle/react-pdf';
 
     export default function Report({ data }) {
       return (
@@ -408,7 +408,7 @@ curl -X POST https://api.getdeckle.dev/v1/generate \
   -H "Authorization: Bearer dk_live_..." \
   -H "Content-Type: application/json" \
   -d '{
-    "react": "import { Document, Page } from \"@deckle/react-pdf\";\nexport default function Doc() { return <Document><Page><h1>Hello</h1></Page></Document>; }",
+    "react": "import { Document, Page } from \"@getdeckle/react-pdf\";\nexport default function Doc() { return <Document><Page><h1>Hello</h1></Page></Document>; }",
     "options": { "format": "A4" }
   }'
 ```
@@ -419,7 +419,7 @@ curl -X POST https://api.getdeckle.dev/v1/generate \
 React Components ──(renderToStaticMarkup)──> HTML ──(Playwright)──> PDF
 ```
 
-1. You compose a document using `@deckle/react-pdf` components
+1. You compose a document using `@getdeckle/react-pdf` components
 2. The Deckle API transpiles your JSX and renders it to static HTML via `ReactDOMServer.renderToStaticMarkup()`
 3. Playwright (headless Chromium) converts the HTML to a pixel-perfect PDF
 4. Special placeholders like `{{qr:...}}` and `{{barcode:...}}` are replaced with SVG images before rendering
@@ -444,7 +444,7 @@ import type {
   WatermarkProps,
   BarcodeProps,
   SignatureProps,
-} from '@deckle/react-pdf';
+} from '@getdeckle/react-pdf';
 ```
 
 ## License

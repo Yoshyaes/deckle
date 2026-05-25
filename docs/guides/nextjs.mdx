@@ -10,7 +10,7 @@ This guide shows you how to add PDF generation to a Next.js application using De
 ## 1. Install the SDK
 
 ```bash
-npm install deckle
+npm install @getdeckle/sdk
 ```
 
 ## 2. Set Up Environment Variables
@@ -27,7 +27,7 @@ Create a server-side API route to generate PDFs. Never expose your API key to th
 
 ```typescript
 // app/api/generate-pdf/route.ts
-import { Deckle } from 'deckle';
+import { Deckle } from '@getdeckle/sdk';
 import { NextResponse } from 'next/server';
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);
@@ -98,7 +98,7 @@ For production invoices, use templates:
 
 ```typescript
 // app/api/generate-invoice/route.ts
-import { Deckle } from 'deckle';
+import { Deckle } from '@getdeckle/sdk';
 import { NextResponse } from 'next/server';
 
 const df = new Deckle(process.env.DECKLE_API_KEY!);

@@ -119,7 +119,7 @@ pnpm --filter @deckle/api test:watch
 
 ```bash
 # TypeScript SDK
-pnpm --filter deckle build
+pnpm --filter @getdeckle/sdk build
 
 # React component library
 cd packages/react && npm install && npm run build

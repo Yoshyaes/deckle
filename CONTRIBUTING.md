@@ -64,8 +64,8 @@ apps/
   api/          — Hono API server (PDF generation, templates, auth)
   dashboard/    — Next.js 14 dashboard
 packages/
-  react/        — @deckle/react-pdf component library
-  sdk-typescript/ — TypeScript SDK (npm: deckle)
+  react/        — @getdeckle/react-pdf component library
+  sdk-typescript/ — TypeScript SDK (npm: @getdeckle/sdk)
   sdk-python/   — Python SDK
   sdk-go/       — Go SDK
   sdk-ruby/     — Ruby SDK
@@ -94,11 +94,11 @@ pnpm build
 To build a specific package:
 
 ```bash
-pnpm --filter @deckle/react-pdf build
-pnpm --filter deckle build
+pnpm --filter @getdeckle/react-pdf build
+pnpm --filter @getdeckle/sdk build
 ```
 
-## Contributing to `@deckle/react-pdf`
+## Contributing to `@getdeckle/react-pdf`
 
 The React component library lives in `packages/react/`. Components are in `src/components/`.
 

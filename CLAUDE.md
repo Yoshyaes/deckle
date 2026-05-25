@@ -29,8 +29,8 @@ pnpm --filter @deckle/dashboard dev   # Next.js dev on port 3001
 pnpm --filter @deckle/dashboard build # Build dashboard
 
 # TypeScript SDK
-pnpm --filter deckle build           # Build SDK (ESM + CJS + types)
-pnpm --filter deckle dev             # Watch mode build
+pnpm --filter @getdeckle/sdk build           # Build SDK (ESM + CJS + types)
+pnpm --filter @getdeckle/sdk dev             # Watch mode build
 
 # React component library
 cd packages/react && npm run build      # Build @deckle/react
