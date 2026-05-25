@@ -215,5 +215,104 @@ describe('Auth middleware', () => {
       });
       expect(res.status).toBe(401);
     });
+
+    it('returns 401 when service secret has different length (timing-safe path)', async () => {
+      // timingSafeEqual throws on differing lengths; the impl pre-checks length
+      // so this should bail to 401 without crashing.
+      process.env.DASHBOARD_SERVICE_SECRET = 'svc_secret_123';
+      const app = createApp();
+      const res = await app.request('/test', {
+        headers: {
+          'X-Service-Secret': 'short',
+          'X-Service-User-Id': 'usr_svc',
+        },
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 401 when service secret matches but X-Service-User-Id is missing', async () => {
+      process.env.DASHBOARD_SERVICE_SECRET = 'svc_secret_123';
+      const app = createApp();
+      const res = await app.request('/test', {
+        headers: { 'X-Service-Secret': 'svc_secret_123' },
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 401 when service auth user does not exist', async () => {
+      process.env.DASHBOARD_SERVICE_SECRET = 'svc_secret_123';
+      (mockLimit as any)._returnValue = Promise.resolve([]); // no user found
+      const app = createApp();
+      const res = await app.request('/test', {
+        headers: {
+          'X-Service-Secret': 'svc_secret_123',
+          'X-Service-User-Id': 'usr_does_not_exist',
+        },
+      });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('Bearer flow edge cases', () => {
+    it('returns 401 when Bearer token is empty string', async () => {
+      const app = createApp();
+      const res = await app.request('/test', { headers: { Authorization: 'Bearer ' } });
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 401 when token is df_live_ prefix but no body', async () => {
+      // Token is "df_live_" exactly. Prefix slice(0,16) is "df_live_" + first 8 chars.
+      // It starts with df_live_, so we go to DB lookup. No record → 401.
+      (mockLimit as any)._returnValue = Promise.resolve([]);
+      const app = createApp();
+      const res = await app.request('/test', { headers: { Authorization: 'Bearer df_live_' } });
+      expect(res.status).toBe(401);
+    });
+
+    it('searches multiple records for the same prefix and returns user on match', async () => {
+      (mockLimit as any)._returnValue = Promise.resolve([
+        { keyId: 'k1', keyHash: 'h1', userId: 'u1', email: 'a@b.com', plan: 'free' },
+        { keyId: 'k2', keyHash: 'h2', userId: 'u2', email: 'c@d.com', plan: 'pro' },
+      ]);
+      // First compare fails, second succeeds.
+      (bcrypt.compare as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const app = createApp();
+      const res = await app.request('/test', {
+        headers: { Authorization: 'Bearer df_live_abcdefgh12345678rest' },
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.user.id).toBe('u2');
+    });
+
+    it('returns 401 when ALL bcrypt comparisons in the prefix bucket fail', async () => {
+      (mockLimit as any)._returnValue = Promise.resolve([
+        { keyId: 'k1', keyHash: 'h1', userId: 'u1', email: 'a@b.com', plan: 'free' },
+        { keyId: 'k2', keyHash: 'h2', userId: 'u2', email: 'c@d.com', plan: 'pro' },
+      ]);
+      (bcrypt.compare as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+      const app = createApp();
+      const res = await app.request('/test', {
+        headers: { Authorization: 'Bearer df_live_abcdefgh12345678rest' },
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it('does not leak bcrypt verification result via response body', async () => {
+      (mockLimit as any)._returnValue = Promise.resolve([
+        { keyId: 'k1', keyHash: 'h1', userId: 'u1', email: 'a@b.com', plan: 'free' },
+      ]);
+      (bcrypt.compare as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+      const app = createApp();
+      const res = await app.request('/test', {
+        headers: { Authorization: 'Bearer df_live_abcdefgh12345678rest' },
+      });
+      expect(res.status).toBe(401);
+      const text = await res.text();
+      expect(text).not.toContain('bcrypt');
+      expect(text).not.toContain('hash');
+    });
   });
 });
