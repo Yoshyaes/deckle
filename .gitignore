@@ -26,3 +26,10 @@ Deckle Assets/
 # Local-only: audit outputs and founder outreach drafts contain user PII
 audit-prod-*.txt
 outreach/*.md
+
+# Internal rebrand working files + old brand assets (not for public repo)
+DocuForge Assets/
+deckle_rebrand/
+
+# Build artifacts
+*.gem
