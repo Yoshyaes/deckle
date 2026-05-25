@@ -105,7 +105,7 @@ class BrowserPool {
 
 export const browserPool = new BrowserPool();
 
-function parseMargin(margin: RenderOptions['margin']) {
+export function parseMargin(margin: RenderOptions['margin']) {
   if (!margin) return { top: '0.5in', right: '0.5in', bottom: '0.5in', left: '0.5in' };
   if (typeof margin === 'string') {
     return { top: margin, right: margin, bottom: margin, left: margin };
@@ -118,7 +118,7 @@ function parseMargin(margin: RenderOptions['margin']) {
   };
 }
 
-function interpolatePageVars(html: string): string {
+export function interpolatePageVars(html: string): string {
   // Playwright uses its own class-based system for page numbers in headers/footers
   return html
     .replace(/\{\{pageNumber\}\}/g, '<span class="pageNumber"></span>')
