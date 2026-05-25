@@ -68,4 +68,84 @@ describe('errorResponse', () => {
     expect(status).toBe(500);
     expect(body.error.code).toBe('INTERNAL_ERROR');
   });
+
+  it('does not leak internal error messages in 500 body', () => {
+    const err = new Error('db connection string was postgres://user:secret@db');
+    const { body } = errorResponse(err);
+    expect(JSON.stringify(body)).not.toContain('secret');
+    expect(JSON.stringify(body)).not.toContain('postgres');
+  });
+
+  it('formats ValidationError', () => {
+    const err = new ValidationError('field x is required');
+    const { status, body } = errorResponse(err);
+    expect(status).toBe(400);
+    expect(body.error.code).toBe('VALIDATION_ERROR');
+    expect(body.error.message).toBe('field x is required');
+  });
+
+  it('formats NotFoundError', () => {
+    const err = new NotFoundError('User');
+    const { status, body } = errorResponse(err);
+    expect(status).toBe(404);
+    expect(body.error.code).toBe('NOT_FOUND');
+    expect(body.error.message).toBe('User not found');
+  });
+
+  it('formats UsageLimitError', () => {
+    const err = new UsageLimitError();
+    const { status, body } = errorResponse(err);
+    expect(status).toBe(403);
+    expect(body.error.code).toBe('USAGE_LIMIT_EXCEEDED');
+  });
+
+  it('non-rate-limit AppError does not include retry_after', () => {
+    const err = new AuthError();
+    const { body } = errorResponse(err);
+    expect((body.error as Record<string, unknown>).retry_after).toBeUndefined();
+  });
+
+  it('formats ZodError as 400 with combined messages', async () => {
+    const { z } = await import('zod');
+    const schema = z.object({ name: z.string(), count: z.number() });
+    const result = schema.safeParse({ name: 42, count: 'x' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const { status, body } = errorResponse(result.error);
+      expect(status).toBe(400);
+      expect(body.error.code).toBe('VALIDATION_ERROR');
+      expect(body.error.message).toContain(',');
+    }
+  });
+
+  it('handles thrown strings or non-Error throwables', () => {
+    const { status, body } = errorResponse('something broke');
+    expect(status).toBe(500);
+    expect(body.error.code).toBe('INTERNAL_ERROR');
+  });
+
+  it('handles null', () => {
+    const { status, body } = errorResponse(null);
+    expect(status).toBe(500);
+    expect(body.error.code).toBe('INTERNAL_ERROR');
+  });
+});
+
+describe('AppError inheritance', () => {
+  it('subclasses are instanceof AppError', () => {
+    expect(new AuthError() instanceof AppError).toBe(true);
+    expect(new RateLimitError(1) instanceof AppError).toBe(true);
+    expect(new NotFoundError('x') instanceof AppError).toBe(true);
+    expect(new UsageLimitError() instanceof AppError).toBe(true);
+    expect(new ValidationError('y') instanceof AppError).toBe(true);
+  });
+
+  it('subclasses are instanceof Error', () => {
+    expect(new AuthError() instanceof Error).toBe(true);
+  });
+
+  it('AppError name is set', () => {
+    const err = new AuthError();
+    expect(err.name).toBe('AppError');
+  });
 });
