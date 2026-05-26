@@ -12,6 +12,7 @@
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 
 const API_KEY = process.env.DECKLE_API_KEY;
@@ -64,7 +65,7 @@ function toolError(err: unknown) {
   };
 }
 
-const server = new McpServer({
+export const server = new McpServer({
   name: 'deckle',
   version: '1.0.0',
 });
@@ -610,7 +611,17 @@ async function main() {
   await server.connect(transport);
 }
 
-main().catch((err) => {
-  console.error('Fatal error:', err);
-  process.exit(1);
-});
+// Only start the stdio transport when this file is run directly (e.g. via
+// `npx @deckle/mcp-server` or Claude Desktop). When imported by a test, the
+// `server` export is inspected without opening stdio. Case-insensitive compare
+// for Windows path casing.
+const invokedDirectly =
+  !!process.argv[1] &&
+  import.meta.url.toLowerCase() === pathToFileURL(process.argv[1]).href.toLowerCase();
+
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error('Fatal error:', err);
+    process.exit(1);
+  });
+}
