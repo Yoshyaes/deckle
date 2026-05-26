@@ -162,6 +162,44 @@ Get usage for current billing period.
 
 ---
 
+### POST /v1/pdf/* — PDF tools
+
+Operate on existing PDFs (base64 in; `output` is `"url"` by default or `"base64"`).
+
+- `POST /v1/pdf/merge` — `{ pdfs: string[] }` (2+ base64 PDFs, in order) → merged PDF.
+- `POST /v1/pdf/split` — `{ pdf, ranges?: number[][] }`. Ranges are 1-indexed inclusive, e.g. `[[1,3],[5]]`; omit to split every page. → `{ parts, total }`.
+- `POST /v1/pdf/info` — `{ pdf }` → metadata (page count, title, author, …).
+- `POST /v1/pdf/protect` — `{ pdf, user_password?, owner_password?, permissions? }` → AES-256-encrypted PDF.
+- `POST /v1/pdf/sign` — `{ pdf, name, reason?, location?, contact?, page?, x?, y?, width?, height?, signature?: { p12, password } }`. Without `signature`: a visual annotation only. With a base64 PKCS#12 credential: a cryptographic PAdES-B-B signature (the P12 is used once and never stored).
+- `POST /v1/pdf/forms/fill` — `{ pdf, fields: [{ name, value }], flatten? }`.
+- `POST /v1/pdf/forms/add-fields` — `{ pdf, fields: [{ name, type: "text"|"checkbox"|"dropdown", page, x, y, width?, height?, options?, defaultValue? }] }`.
+- `POST /v1/pdf/forms/list-fields` — `{ pdf }` → `{ fields, total }`.
+- `POST /v1/pdf/pdfa` — `{ pdf, title?, author?, subject? }` → PDF/A-1b archival format.
+
+### React-to-PDF
+
+`POST /v1/generate` accepts a `react` field: a JSX/TSX string with a **default export** function component; props are passed via `data`. Rendered server-side in an isolated-vm sandbox — output must be static (no `useState`/`useEffect`). SDK: `df.fromReact({ react, data?, styles?, options? })`. Component library: `@getdeckle/react-pdf`.
+
+```json
+{ "react": "export default function Doc({ title }) { return <h1>{title}</h1>; }", "data": { "title": "Hello" }, "options": { "format": "A4" } }
+```
+
+### POST /v1/ai/generate-template — AI template generation
+
+`{ prompt, type?, style?, variables? }` → `{ html_content, variables, type, style }`. Uses Claude to produce a sanitized Handlebars HTML template. Requires `ANTHROPIC_API_KEY` on the server. Rate-limited: 10/day (free), 100/day (paid).
+
+### Batch, Marketplace & Starters
+
+- `POST /v1/generate/batch` — `{ items: [...] }` (1–100 jobs). Async via job queue; returns 202 with IDs; fires a webhook on completion. Accepts an `Idempotency-Key` header.
+- `GET /v1/marketplace`, `POST /v1/marketplace/:id/clone|publish|unpublish|report` — community templates.
+- `GET /v1/starter-templates`, `POST /v1/starter-templates/:slug/clone` — pre-built starters (browse needs no auth).
+
+### MCP Server — `@deckle/mcp-server`
+
+17 tools for AI agents (Claude Desktop, Cursor, Claude Code): `generate_pdf`, `generate_pdf_react`, `generate_pdf_template`, `list_templates`, `create_template`, `generate_template_from_prompt`, `list_starter_templates`, `get_usage`, plus the PDF toolkit — `merge_pdfs`, `split_pdf`, `get_pdf_info`, `protect_pdf`, `sign_pdf`, `fill_pdf_form`, `add_pdf_form_fields`, `list_pdf_form_fields`, `convert_pdf_to_pdfa`. Configure with `DECKLE_API_KEY`.
+
+---
+
 ## SDK Methods
 
 ### TypeScript SDK
@@ -174,6 +212,12 @@ await df.generate({ html, options?, output?, webhook? }): GenerateResponse
 
 // Generate from template
 await df.fromTemplate({ template, data, options?, output? }): GenerateResponse
+
+// Generate from a React (JSX/TSX) string with a default export
+await df.fromReact({ react, data?, styles?, options? }): GenerateResponse
+
+// Also available: df.batch(...), df.pdf.* (merge/split/info/protect/sign/forms/toPdfA),
+// df.marketplace.*, df.starterTemplates.*, df.generateTemplateFromPrompt(...)
 
 // Generations
 await df.getGeneration(id): Generation
@@ -200,6 +244,9 @@ df.generate(html, options?, output?, webhook?) -> GenerateResponse
 
 # Generate from template
 df.from_template(template, data, options?, output?) -> GenerateResponse
+
+# Generate from a React (JSX/TSX) string with a default export
+df.from_react(react, data?, styles?, options?) -> GenerateResponse
 
 # Generations
 df.get_generation(id) -> Generation

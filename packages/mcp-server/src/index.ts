@@ -27,7 +27,7 @@ async function apiRequest(method: string, path: string, body?: unknown) {
       headers: {
         Authorization: `Bearer ${API_KEY}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'deckle-mcp/0.1.0',
+        'User-Agent': 'deckle-mcp/1.0.0',
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
@@ -46,9 +46,27 @@ async function apiRequest(method: string, path: string, body?: unknown) {
   }
 }
 
+/** Build the MCP text result for a tool that returns a stored URL or base64 file. */
+function fileResult(heading: string, r: any, extra: string[] = []) {
+  const lines = [heading];
+  if (r.url) lines.push(`URL: ${r.url}`);
+  if (typeof r.file_size === 'number') lines.push(`Size: ${r.file_size} bytes`);
+  lines.push(...extra);
+  if (!r.url && r.data) lines.push('', 'Base64:', r.data);
+  return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+}
+
+/** Uniform error envelope for tool handlers. */
+function toolError(err: unknown) {
+  return {
+    content: [{ type: 'text' as const, text: `Error: ${(err as Error).message}` }],
+    isError: true,
+  };
+}
+
 const server = new McpServer({
   name: 'deckle',
-  version: '0.1.0',
+  version: '1.0.0',
 });
 
 // Tool: Generate PDF from HTML
@@ -286,6 +304,289 @@ server.tool(
         content: [{ type: 'text' as const, text: `Error: ${(err as Error).message}` }],
         isError: true,
       };
+    }
+  },
+);
+
+// ── PDF tools ────────────────────────────────────────────────────────────
+// These operate on existing PDFs supplied as base64. They default to
+// returning a hosted URL; pass output: "base64" to get the bytes inline.
+
+// Tool: Merge PDFs
+server.tool(
+  'merge_pdfs',
+  'Merge two or more PDFs into a single document. Provide the PDFs as base64 strings in the order they should appear.',
+  {
+    pdfs: z.array(z.string()).min(2).describe('Base64-encoded PDF files to merge, in order (at least 2)'),
+    output: z.enum(['url', 'base64']).optional().describe('Return a hosted URL (default) or inline base64'),
+  },
+  async ({ pdfs, output }) => {
+    try {
+      const r = await apiRequest('POST', '/v1/pdf/merge', { pdfs, output: output || 'url' });
+      return fileResult('PDFs merged.', r);
+    } catch (err) {
+      return toolError(err);
+    }
+  },
+);
+
+// Tool: Split PDF
+server.tool(
+  'split_pdf',
+  'Split a PDF into multiple files by page range. Ranges are 1-indexed and inclusive; each is [start] or [start, end]. Omit ranges to split into one file per page.',
+  {
+    pdf: z.string().describe('Base64-encoded PDF to split'),
+    ranges: z
+      .array(z.array(z.number().int().positive()).min(1).max(2))
+      .optional()
+      .describe('Page ranges, e.g. [[1,3],[5]] for pages 1-3 and page 5. Omit to split every page.'),
+    output: z.enum(['url', 'base64']).optional().describe('Return hosted URLs (default) or inline base64'),
+  },
+  async ({ pdf, ranges, output }) => {
+    try {
+      const r = await apiRequest('POST', '/v1/pdf/split', {
+        pdf,
+        ...(ranges && { ranges }),
+        output: output || 'url',
+      });
+      const parts = (r.parts || [])
+        .map((p: any, i: number) => `  ${i + 1}. ${p.url || `(base64, ${p.file_size} bytes)`}`)
+        .join('\n');
+      return { content: [{ type: 'text' as const, text: `Split into ${r.total} file(s):\n${parts}` }] };
+    } catch (err) {
+      return toolError(err);
+    }
+  },
+);
+
+// Tool: PDF info
+server.tool(
+  'get_pdf_info',
+  'Get metadata for a PDF: page count, title, author, and other document properties.',
+  { pdf: z.string().describe('Base64-encoded PDF') },
+  async ({ pdf }) => {
+    try {
+      const info = await apiRequest('POST', '/v1/pdf/info', { pdf });
+      return { content: [{ type: 'text' as const, text: `PDF info:\n${JSON.stringify(info, null, 2)}` }] };
+    } catch (err) {
+      return toolError(err);
+    }
+  },
+);
+
+// Tool: Protect (encrypt) PDF
+server.tool(
+  'protect_pdf',
+  'Password-protect a PDF with AES-256 encryption. Supply a user password (required to open), an owner password (required to change permissions), or both.',
+  {
+    pdf: z.string().describe('Base64-encoded PDF'),
+    user_password: z.string().optional().describe('Password required to open the PDF'),
+    owner_password: z.string().optional().describe('Password required to change permissions'),
+    permissions: z
+      .object({
+        print: z.enum(['none', 'low', 'full']).optional().describe('Printing allowance'),
+        modify: z.boolean().optional(),
+        copy: z.boolean().optional(),
+        annotate: z.boolean().optional(),
+      })
+      .optional()
+      .describe('Permission flags enforced when opened with the user password'),
+    output: z.enum(['url', 'base64']).optional(),
+  },
+  async ({ pdf, user_password, owner_password, permissions, output }) => {
+    try {
+      const r = await apiRequest('POST', '/v1/pdf/protect', {
+        pdf,
+        ...(user_password && { user_password }),
+        ...(owner_password && { owner_password }),
+        ...(permissions && { permissions }),
+        output: output || 'url',
+      });
+      return fileResult('PDF encrypted (AES-256).', r);
+    } catch (err) {
+      return toolError(err);
+    }
+  },
+);
+
+// Tool: Sign PDF
+server.tool(
+  'sign_pdf',
+  'Add a signature to a PDF. Without `signature`, draws a visual signature annotation. With a base64 PKCS#12 (.p12/.pfx) credential, also embeds a cryptographic PAdES-B-B signature. The P12 is used once and never stored.',
+  {
+    pdf: z.string().describe('Base64-encoded PDF'),
+    name: z.string().describe('Signer name shown on the signature'),
+    reason: z.string().optional(),
+    location: z.string().optional(),
+    contact: z.string().optional(),
+    page: z.number().int().min(0).optional().describe('0-indexed page for the visual annotation'),
+    x: z.number().optional(),
+    y: z.number().optional(),
+    width: z.number().optional(),
+    height: z.number().optional(),
+    signature: z
+      .object({
+        p12: z.string().describe('PKCS#12 credential, base64-encoded (max 100KB)'),
+        password: z.string().optional().describe('P12 passphrase (use "" if none)'),
+      })
+      .optional()
+      .describe('Cryptographic signing material. Omit for a visual-only annotation.'),
+    output: z.enum(['url', 'base64']).optional(),
+  },
+  async ({ pdf, signature, output, ...opts }) => {
+    try {
+      const r = await apiRequest('POST', '/v1/pdf/sign', {
+        pdf,
+        ...opts,
+        ...(signature && { signature }),
+        output: output || 'url',
+      });
+      const extra = r.cryptographically_signed
+        ? [`Cryptographically signed: yes (${r.signature_type})`]
+        : ['Cryptographically signed: no (visual annotation only)'];
+      return fileResult('PDF signed.', r, extra);
+    } catch (err) {
+      return toolError(err);
+    }
+  },
+);
+
+// Tool: Fill PDF form
+server.tool(
+  'fill_pdf_form',
+  'Fill form fields in a PDF that already has an AcroForm. Set flatten=true to make the values non-editable.',
+  {
+    pdf: z.string().describe('Base64-encoded PDF with form fields'),
+    fields: z
+      .array(z.object({ name: z.string(), value: z.union([z.string(), z.boolean()]) }))
+      .describe('Field name to value. Use a boolean for checkboxes.'),
+    flatten: z.boolean().optional().describe('Flatten the form so fields are no longer editable'),
+    output: z.enum(['url', 'base64']).optional(),
+  },
+  async ({ pdf, fields, flatten, output }) => {
+    try {
+      const r = await apiRequest('POST', '/v1/pdf/forms/fill', {
+        pdf,
+        fields,
+        ...(flatten !== undefined && { flatten }),
+        output: output || 'url',
+      });
+      return fileResult('Form filled.', r);
+    } catch (err) {
+      return toolError(err);
+    }
+  },
+);
+
+// Tool: Add PDF form fields
+server.tool(
+  'add_pdf_form_fields',
+  'Add new form fields (text, checkbox, or dropdown) to a PDF at a given page and position.',
+  {
+    pdf: z.string().describe('Base64-encoded PDF'),
+    fields: z
+      .array(
+        z.object({
+          name: z.string(),
+          type: z.enum(['text', 'checkbox', 'dropdown']),
+          page: z.number().int().min(0).describe('0-indexed page'),
+          x: z.number(),
+          y: z.number(),
+          width: z.number().optional(),
+          height: z.number().optional(),
+          options: z.array(z.string()).optional().describe('Choices for a dropdown'),
+          defaultValue: z.union([z.string(), z.boolean()]).optional(),
+        }),
+      )
+      .describe('Form fields to add'),
+    output: z.enum(['url', 'base64']).optional(),
+  },
+  async ({ pdf, fields, output }) => {
+    try {
+      const r = await apiRequest('POST', '/v1/pdf/forms/add-fields', { pdf, fields, output: output || 'url' });
+      return fileResult('Form fields added.', r);
+    } catch (err) {
+      return toolError(err);
+    }
+  },
+);
+
+// Tool: List PDF form fields
+server.tool(
+  'list_pdf_form_fields',
+  'List the form fields present in a PDF.',
+  { pdf: z.string().describe('Base64-encoded PDF') },
+  async ({ pdf }) => {
+    try {
+      const r = await apiRequest('POST', '/v1/pdf/forms/list-fields', { pdf });
+      return {
+        content: [{ type: 'text' as const, text: `${r.total} field(s):\n${JSON.stringify(r.fields, null, 2)}` }],
+      };
+    } catch (err) {
+      return toolError(err);
+    }
+  },
+);
+
+// Tool: Convert to PDF/A
+server.tool(
+  'convert_pdf_to_pdfa',
+  'Convert a PDF to the archival PDF/A-1b format. Optionally set document metadata.',
+  {
+    pdf: z.string().describe('Base64-encoded PDF'),
+    title: z.string().optional(),
+    author: z.string().optional(),
+    subject: z.string().optional(),
+    output: z.enum(['url', 'base64']).optional(),
+  },
+  async ({ pdf, title, author, subject, output }) => {
+    try {
+      const r = await apiRequest('POST', '/v1/pdf/pdfa', {
+        pdf,
+        ...(title && { title }),
+        ...(author && { author }),
+        ...(subject && { subject }),
+        output: output || 'url',
+      });
+      return fileResult('Converted to PDF/A-1b.', r);
+    } catch (err) {
+      return toolError(err);
+    }
+  },
+);
+
+// Tool: Generate a template from a natural-language prompt (AI)
+server.tool(
+  'generate_template_from_prompt',
+  'Use AI to generate a reusable HTML template (with Handlebars variables) from a natural-language description. Returns the HTML and detected variables; pass the HTML to create_template to save it.',
+  {
+    prompt: z
+      .string()
+      .max(2000)
+      .describe('Describe the document, e.g. "a modern invoice with line items and a total"'),
+    type: z.enum(['invoice', 'receipt', 'report', 'certificate', 'letter', 'resume', 'other']).optional(),
+    style: z.enum(['professional', 'modern', 'minimal', 'colorful']).optional(),
+    variables: z.array(z.string()).optional().describe('Specific Handlebars variable names to include'),
+  },
+  async ({ prompt, type, style, variables }) => {
+    try {
+      const r = await apiRequest('POST', '/v1/ai/generate-template', {
+        prompt,
+        ...(type && { type }),
+        ...(style && { style }),
+        ...(variables && { variables }),
+      });
+      const vars = (r.variables || []).join(', ') || '(none detected)';
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Template generated.\nDetected variables: ${vars}\n\nHTML:\n${r.html_content || r.html}`,
+          },
+        ],
+      };
+    } catch (err) {
+      return toolError(err);
     }
   },
 );

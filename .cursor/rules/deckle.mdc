@@ -8,6 +8,7 @@ When using Deckle for PDF generation:
 - Initialize with API key: const df = new Deckle(process.env.DECKLE_API_KEY)
 - Generate from HTML: await df.generate({ html: '...', options: { format: 'A4' } })
 - Generate from template: await df.fromTemplate({ template: 'tmpl_xxx', data: { ... } })
+- Generate from React (a JSX/TSX string with a default export; props via data): await df.fromReact({ react: '...', data: { ... } })
 - Response includes: id, status, url, pages, file_size, generation_time_ms
 - Supported formats: A4, Letter, Legal, or custom { width, height }
 - Headers/footers support {{pageNumber}} and {{totalPages}} interpolation
