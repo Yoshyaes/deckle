@@ -23,7 +23,7 @@ gem "httpx"
 require "httpx"
 require "json"
 
-class Docuforge
+class Deckle
   BASE_URL = "https://api.getdeckle.dev"
 
   def initialize(api_key = ENV["DECKLE_API_KEY"])
@@ -62,7 +62,7 @@ end
 # app/controllers/invoices_controller.rb
 class InvoicesController < ApplicationController
   def generate_pdf
-    df = Docuforge.new
+    df = Deckle.new
 
     result = df.from_template(
       template: "tmpl_invoice_v2",
@@ -79,7 +79,7 @@ class InvoicesController < ApplicationController
   end
 
   def download
-    df = Docuforge.new
+    df = Deckle.new
     @invoice = Invoice.find(params[:id])
 
     result = df.from_template(
