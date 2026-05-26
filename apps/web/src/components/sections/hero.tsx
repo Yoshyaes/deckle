@@ -54,7 +54,7 @@ export function Hero() {
 
             <p className="text-lg sm:text-xl text-text-muted leading-relaxed mb-8 max-w-lg">
               Generate invoices, reports, and certificates from HTML, React, or
-              templates. One API call, milliseconds.
+              templates. One API call, ready in seconds.
             </p>
 
             <div className="flex flex-wrap gap-3">

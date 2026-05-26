@@ -22,7 +22,7 @@ const steps = [
     number: '03',
     title: 'Get Your PDF',
     description:
-      'Receive a pixel-perfect PDF back in milliseconds. A CDN URL, ready to download, email, or embed.',
+      'Receive a pixel-perfect PDF back in seconds. A CDN URL, ready to download, email, or embed.',
   },
 ];
 
