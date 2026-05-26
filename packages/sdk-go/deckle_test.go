@@ -179,3 +179,21 @@ func TestPlanResolutionViaTypes(t *testing.T) {
 		t.Errorf("FontSize regressed to snake_case in %s", string(buf))
 	}
 }
+
+func TestPDFOptionsSerializesPrintBackgroundCamelCase(t *testing.T) {
+	// The API only accepts the camelCase `printBackground` key. If a
+	// refactor reintroduces `print_background`, Playwright silently
+	// ignores it and CSS backgrounds stop rendering. Lock the wire format.
+	no := false
+	o := PDFOptions{PrintBackground: &no}
+	buf, err := json.Marshal(o)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if !strings.Contains(string(buf), `"printBackground":false`) {
+		t.Errorf("expected printBackground:false in %s", string(buf))
+	}
+	if strings.Contains(string(buf), `"print_background"`) {
+		t.Errorf("PrintBackground regressed to snake_case in %s", string(buf))
+	}
+}

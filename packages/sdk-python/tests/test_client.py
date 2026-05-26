@@ -13,7 +13,7 @@ import httpx
 import pytest
 import respx
 
-from deckle import Deckle
+from deckle import Deckle, PDFOptions
 from deckle.errors import AuthenticationError, DeckleError, RateLimitError
 
 
@@ -114,6 +114,36 @@ class TestRequestShape:
         url = route.calls[0].request.url
         assert url.params["limit"] == "10"
         assert url.params["offset"] == "20"
+
+
+# ── Options serialization ───────────────────────────────────────────────────
+
+
+class TestOptionsSerialization:
+    """The API only accepts camelCase option keys. PDFOptions exposes the
+    Pythonic `print_background` but must serialize as `printBackground`
+    (via field alias + model_dump(by_alias=True) in the client). Lock the
+    wire format so a refactor can't silently drop the option."""
+
+    @respx.mock
+    def test_print_background_serializes_as_camelcase(self):
+        route = respx.post(f"{BASE_URL}/v1/generate").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "gen_1",
+                    "status": "completed",
+                    "url": "https://x",
+                    "pages": 1,
+                    "file_size": 1,
+                    "generation_time_ms": 1,
+                },
+            )
+        )
+        client().generate(html="<h1>hi</h1>", options=PDFOptions(print_background=False))
+        body = json.loads(route.calls[0].request.content)
+        assert body["options"]["printBackground"] is False
+        assert "print_background" not in body["options"]
 
 
 # ── Error handling ──────────────────────────────────────────────────────────
