@@ -8,7 +8,7 @@ _Last updated: 2026-05-25, after the end-to-end smoke test passed (zero-to-PDF i
 
 ## 🔴 Do now (security)
 
-### Rotate the test API key
+### Rotate the test API key ✅
 A `dk_live_` key was pasted into a chat during the smoke test and is now in that history.
 - Go to **app.getdeckle.dev/keys** → delete the key `dk_live_fa6RB…` → create a fresh one.
 
@@ -16,12 +16,14 @@ A `dk_live_` key was pasted into a chat during the smoke test and is now in that
 
 ## 🟡 Recommended before a public launch
 
-### 1. Clerk production instance
-The dashboard currently runs on a Clerk **development** instance (`pk_test_…`). Dev instances have rate limits, a `*.accounts.dev` sign-in domain, and aren't meant for real users.
-- Clerk dashboard → create/switch to a **Production** instance for `app.getdeckle.dev`.
-- Update the Vercel `deckle-dashboard` env vars: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (→ `pk_live_…`) and `CLERK_SECRET_KEY` (→ `sk_live_…`).
-- Add `app.getdeckle.dev` to the production instance's allowed domains.
-- Redeploy `deckle-dashboard`.
+### 1. Clerk production instance — ✅ DONE
+Migrated off the Clerk dev instance to production (primary domain `getdeckle.dev`).
+- [x] Created production instance (cloned from dev), "Primary application"
+- [x] Added the 5 Clerk DNS CNAMEs in Vercel DNS — all verified resolving to the correct `*.clerk.services` targets
+- [x] Clerk DNS verified; SSL certs issued for `clerk.`/`accounts.getdeckle.dev`
+- [x] Swapped `pk_live_`/`sk_live_` into Vercel `deckle-dashboard` env + redeployed
+- [x] Verified `app.getdeckle.dev` now serves `pk_live_` bound to `clerk.getdeckle.dev`
+- [ ] _Remaining only if you use the Clerk webhook for user sync:_ re-point it to the production instance + update `CLERK_WEBHOOK_SECRET` (skip if no webhook)
 
 ### 2. Platform env var sweep (values still pointing at getdocuforge.dev)
 The *code* is clean (verified). The *deployed env var values* may still reference the old domain. Check and update:
