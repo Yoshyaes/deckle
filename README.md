@@ -1,121 +1,93 @@
 # Deckle
 
-**PDF generation API for developers. HTML in, pixel-perfect PDF out.**
-
-Generate pixel-perfect PDFs from HTML or reusable templates. Full CSS support, smart page breaks, headers/footers with page numbers â€” all in under 3 seconds.
-
-## Quick Start
+**The PDF generation API for developers.** HTML in, pixel-perfect PDF out — in under 3 seconds.
 
 ```typescript
 import { Deckle } from '@getdeckle/sdk';
 
-const df = new Deckle('dk_live_...');
+const deckle = new Deckle('dk_live_...');
 
-const pdf = await df.generate({
-  html: '<h1>Invoice #1234</h1><p>Amount: $500</p>',
-  options: { format: 'A4', margin: '1in' }
+const pdf = await deckle.generate({
+  html: '<h1>Invoice #1234</h1><p>Amount due: $500</p>',
+  options: { format: 'A4', margin: '1in' },
 });
 
-console.log(pdf.url);
-// â†’ https://cdn.getdeckle.dev/gen_abc123.pdf
+console.log(pdf.url); // → a hosted PDF, ready to download
 ```
 
-## Features
+Full CSS support (Grid, Flexbox, custom fonts), smart page breaks, and headers/footers with `{{pageNumber}}` / `{{totalPages}}` interpolation.
 
-- **HTML â†’ PDF** â€” Send any HTML, get a perfect PDF. CSS Grid, Flexbox, custom fonts all work.
-- **Templates** â€” Design once, merge data forever. Handlebars syntax for variables, loops, conditionals.
-- **Headers & Footers** â€” With `{{pageNumber}}` and `{{totalPages}}` interpolation.
-- **Smart Page Breaks** â€” No orphaned headings or split table rows.
-- **TypeScript & Python SDKs** â€” Install and generate in 4 lines of code.
-- **AI-Native** â€” llms.txt, Cursor rules, and framework guides from day one.
-
-## Project Structure
-
-```
-deckle/
-â”œâ”€â”€ apps/
-â”‚   â”œâ”€â”€ api/          # Hono API server (Playwright rendering)
-â”‚   â””â”€â”€ dashboard/    # Next.js dashboard (Clerk auth)
-â”œâ”€â”€ packages/
-â”‚   â”œâ”€â”€ sdk-typescript/   # npm: deckle
-â”‚   â””â”€â”€ sdk-python/       # pip: deckle
-â”œâ”€â”€ docs/             # Mintlify documentation
-â””â”€â”€ public/           # llms.txt, Cursor rules
-```
-
-## Development
-
-### Prerequisites
-
-- Node.js 20+
-- pnpm 9+
-- PostgreSQL (or Neon)
-- Redis (or Upstash)
-
-### Setup
+## Install
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Copy environment variables
-cp .env.example .env
-
-# Install Playwright browsers
-cd apps/api && npx playwright install chromium
-
-# Start development servers
-pnpm dev
+npm install @getdeckle/sdk     # TypeScript / JavaScript
+pip install deckle             # Python
+gem install deckle             # Ruby
+go get github.com/Yoshyaes/deckle/packages/sdk-go  # Go
 ```
 
-### Environment Variables
+Get an API key at [app.getdeckle.dev](https://app.getdeckle.dev).
 
-Copy `.env.example` to `.env` and fill in your values. At minimum, you need:
-- `DATABASE_URL` â€” PostgreSQL connection string
-- `REDIS_URL` â€” Redis connection string
+## Templates
 
-For local development, the API server falls back to local filesystem storage when R2 is not configured.
+Design once, merge data forever. Templates use Handlebars syntax (`{{variable}}`, `{{#each}}`, `{{#if}}`).
+
+```typescript
+const pdf = await deckle.fromTemplate({
+  template: 'tmpl_abc123',
+  data: { name: 'Acme Corp', amount: 500 },
+});
+```
 
 ## SDKs
 
-### TypeScript
+| Language | Package | Class |
+|----------|---------|-------|
+| TypeScript | [`@getdeckle/sdk`](https://www.npmjs.com/package/@getdeckle/sdk) | `Deckle` |
+| React | [`@getdeckle/react-pdf`](https://www.npmjs.com/package/@getdeckle/react-pdf) | components |
+| Python | [`deckle`](https://pypi.org/project/deckle/) | `Deckle` |
+| Ruby | [`deckle`](https://rubygems.org/gems/deckle) | `Deckle` |
+| Go | [`.../deckle/packages/sdk-go`](https://pkg.go.dev/github.com/Yoshyaes/deckle/packages/sdk-go) | functional options |
+
+All SDKs return the same shape: `{ id, status, url, pages, file_size, generation_time_ms }`.
+
+## Self-hosting
 
 ```bash
-npm install @getdeckle/sdk
+docker compose -f docker-compose.selfhost.yml up -d
 ```
 
-### Python
+Runs the API with Postgres and Redis. See [docs.getdeckle.dev](https://docs.getdeckle.dev) for storage (R2/S3/GCS) and scaling config.
+
+## Local development
+
+Requires Node 20+, pnpm 9+, PostgreSQL, and Redis.
 
 ```bash
-pip install deckle
+pnpm install
+cp .env.example .env                          # set DATABASE_URL + REDIS_URL
+cd apps/api && npx playwright install chromium # one-time, for rendering
+pnpm dev                                       # API :3000, dashboard :3001
 ```
 
-See the [SDK documentation](https://getdeckle.dev/docs/quickstart) for full usage details.
+This is a pnpm + Turborepo monorepo:
 
-## Deployment
-
-### Fly.io
-
-```bash
-fly launch
-fly secrets set DATABASE_URL=... REDIS_URL=... R2_ACCOUNT_ID=...
-fly deploy
+```
+apps/
+  api/          Hono API server, Playwright HTML→PDF rendering
+  dashboard/    Next.js dashboard (Clerk auth)
+  web/          Marketing site
+packages/
+  sdk-typescript, sdk-python, sdk-go, sdk-ruby
+  react/        @getdeckle/react-pdf components
+  mcp-server/   MCP server for AI agents
+docs/           Mintlify documentation
 ```
 
-## API Endpoints
+## Docs
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/v1/generate` | Generate a PDF from HTML or template |
-| GET | `/v1/generations/:id` | Get generation details |
-| GET | `/v1/generations` | List generations |
-| POST | `/v1/templates` | Create a template |
-| GET | `/v1/templates` | List templates |
-| GET | `/v1/templates/:id` | Get a template |
-| PUT | `/v1/templates/:id` | Update a template |
-| DELETE | `/v1/templates/:id` | Delete a template |
-| GET | `/v1/usage` | Get usage stats |
-| GET | `/health` | Health check |
+- **Quickstart & guides:** [docs.getdeckle.dev](https://docs.getdeckle.dev)
+- **API reference:** every route is under `/v1/*` — generate, templates, PDF tools (merge/split/sign/forms), and marketplace.
 
 ## License
 
