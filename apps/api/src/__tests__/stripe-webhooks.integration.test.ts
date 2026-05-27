@@ -41,7 +41,7 @@ vi.mock('../lib/redis.js', () => ({
 
 // Stub Stripe SDK so checkout.session.completed's subscriptions.retrieve
 // returns a deterministic value without a network round trip.
-const subscriptionsRetrieveMock = vi.fn<[string], Promise<Stripe.Subscription>>();
+const subscriptionsRetrieveMock = vi.fn<(id: string) => Promise<Stripe.Subscription>>();
 vi.mock('stripe', () => {
   return {
     default: class FakeStripe {
