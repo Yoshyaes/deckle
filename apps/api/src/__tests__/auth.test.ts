@@ -37,7 +37,7 @@ vi.mock('../lib/db.js', () => ({
               return {
                 limit: (...b: unknown[]) => {
                   mockLimit(...b);
-                  return mockLimit._returnValue;
+                  return (mockLimit as any)._returnValue;
                 },
               };
             },
@@ -49,7 +49,7 @@ vi.mock('../lib/db.js', () => ({
                   return {
                     limit: (...c: unknown[]) => {
                       mockLimit(...c);
-                      return mockLimit._returnValue;
+                      return (mockLimit as any)._returnValue;
                     },
                   };
                 },
