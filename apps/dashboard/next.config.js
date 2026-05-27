@@ -19,21 +19,25 @@ const cspDirectives = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self' https://checkout.stripe.com",
-  // Next.js needs unsafe-inline + unsafe-eval for hydration.
-  // Clerk adds its own JS bundle from clerk.com.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com",
+  // Next.js needs unsafe-inline + unsafe-eval for hydration. Clerk loads
+  // clerk-js from its frontend-API host: the dev instance uses
+  // *.clerk.accounts.dev, the PRODUCTION instance uses our custom domain
+  // clerk.getdeckle.dev — both must be allowlisted or the SignIn component
+  // silently fails to mount.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com",
   // Tailwind + Clerk + next/font inject inline <style> tags.
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   // next/font subsets fonts at build time but Clerk loads from gstatic.
   "font-src 'self' data: https://fonts.gstatic.com",
   // Avatars come from img.clerk.com; we also keep data: for inline icons.
-  "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.accounts.dev",
-  // The dashboard hits its own /api/* and the public API.
-  "connect-src 'self' https://api.getdeckle.dev https://*.clerk.accounts.dev https://*.clerk.com https://clerk-telemetry.com",
+  "img-src 'self' data: blob: https://img.clerk.com https://clerk.getdeckle.dev https://*.clerk.accounts.dev",
+  // The dashboard hits its own /api/*, the public API, and Clerk's FAPI
+  // (clerk.getdeckle.dev in production, *.clerk.accounts.dev in dev).
+  "connect-src 'self' https://api.getdeckle.dev https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://*.clerk.com https://clerk-telemetry.com",
   // Workers (Clerk uses Web Workers in some flows).
   "worker-src 'self' blob:",
-  // Block all <frame>/<iframe> src by default; Stripe billing portal needs an exception.
-  "frame-src 'self' https://*.stripe.com https://*.clerk.accounts.dev",
+  // Block all <frame>/<iframe> src by default; Stripe billing portal + Clerk need exceptions.
+  "frame-src 'self' https://*.stripe.com https://clerk.getdeckle.dev https://*.clerk.accounts.dev",
 ];
 
 const securityHeaders = [
