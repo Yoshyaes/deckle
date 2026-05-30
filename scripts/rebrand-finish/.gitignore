@@ -1,0 +1,3 @@
+# Secrets live here in plaintext while the scripts run. Never commit.
+.env
+.env.local
