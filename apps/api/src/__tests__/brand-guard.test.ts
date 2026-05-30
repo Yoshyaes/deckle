@@ -34,6 +34,7 @@ const ALLOW: RegExp[] = [
   /^LAUNCH-REMAINING\.md$/, // launch checklist references the old name in tasks
   /^\.gitignore$/, // ignores the local "DocuForge Assets/" working folder
   /brand-guard\.test\.ts$/, // this guard necessarily contains the word
+  /^scripts\/rebrand-finish\//, // single-use runners that finish the rebrand
 ];
 
 const SCAN_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|json|md|mdx|py|rb|go|toml|ya?ml|html|css|gemspec)$/;
