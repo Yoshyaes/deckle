@@ -4,6 +4,8 @@ export default function SignInPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0A0A0B]">
       <SignIn
+        afterSignInUrl="/"
+        signUpUrl="/sign-up"
         appearance={{
           elements: {
             rootBox: 'mx-auto',
