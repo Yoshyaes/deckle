@@ -24,7 +24,7 @@ const cspDirectives = [
   // *.clerk.accounts.dev, the PRODUCTION instance uses our custom domain
   // clerk.getdeckle.dev — both must be allowlisted or the SignIn component
   // silently fails to mount.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://challenges.cloudflare.com",
   // Tailwind + Clerk + next/font inject inline <style> tags.
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   // next/font subsets fonts at build time but Clerk loads from gstatic.
@@ -33,11 +33,11 @@ const cspDirectives = [
   "img-src 'self' data: blob: https://img.clerk.com https://clerk.getdeckle.dev https://*.clerk.accounts.dev",
   // The dashboard hits its own /api/*, the public API, and Clerk's FAPI
   // (clerk.getdeckle.dev in production, *.clerk.accounts.dev in dev).
-  "connect-src 'self' https://api.getdeckle.dev https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://*.clerk.com https://clerk-telemetry.com",
+  "connect-src 'self' https://api.getdeckle.dev https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://*.clerk.com https://clerk-telemetry.com https://challenges.cloudflare.com",
   // Workers (Clerk uses Web Workers in some flows).
   "worker-src 'self' blob:",
   // Block all <frame>/<iframe> src by default; Stripe billing portal + Clerk need exceptions.
-  "frame-src 'self' https://*.stripe.com https://clerk.getdeckle.dev https://*.clerk.accounts.dev",
+  "frame-src 'self' https://*.stripe.com https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://challenges.cloudflare.com",
 ];
 
 const securityHeaders = [
