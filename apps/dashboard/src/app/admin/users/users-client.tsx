@@ -50,6 +50,15 @@ function formatDuration(seconds: number | null): string {
   return `${Math.round(seconds / 86400)}d`;
 }
 
+function formatDate(date: string | null): string {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 function successRate(u: User): string {
   if (u.generation_count === 0) return '—';
   const rate = Math.round((u.success_count / u.generation_count) * 100);
@@ -151,6 +160,7 @@ export function UsersClient() {
               <th className="text-right px-4 py-3 text-text-muted font-medium">Success</th>
               <th className="text-right px-4 py-3 text-text-muted font-medium">Keys</th>
               <th className="text-left px-4 py-3 text-text-muted font-medium">Time → 1st gen</th>
+              <th className="text-left px-4 py-3 text-text-muted font-medium">Signed Up</th>
               <th className="text-left px-4 py-3 text-text-muted font-medium">Last Active</th>
               <th className="text-left px-4 py-3 text-text-muted font-medium">1st error</th>
               <th className="text-left px-4 py-3 text-text-muted font-medium">Actions</th>
@@ -159,13 +169,13 @@ export function UsersClient() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-text-dim">
+                <td colSpan={10} className="px-4 py-8 text-center text-text-dim">
                   Loading...
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-text-dim">
+                <td colSpan={10} className="px-4 py-8 text-center text-text-dim">
                   No users found
                 </td>
               </tr>
@@ -210,6 +220,9 @@ export function UsersClient() {
                   <td className="px-4 py-3 text-right text-text-muted">{u.key_count}</td>
                   <td className="px-4 py-3 text-text-dim text-xs">
                     {formatDuration(u.time_to_first_gen_sec)}
+                  </td>
+                  <td className="px-4 py-3 text-text-dim text-xs">
+                    {formatDate(u.created_at)}
                   </td>
                   <td className="px-4 py-3 text-text-dim text-xs">
                     {timeAgo(u.last_generation)}
