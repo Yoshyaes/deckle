@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 interface AdminStats {
   totalUsers: number;
+  newUsersThisMonth: number;
   totalGenerations: number;
   generationsThisMonth: number;
   generationsToday: number;
@@ -13,8 +14,18 @@ interface AdminStats {
   errorRate: number;
   avgLatencyMs: number;
   totalStorageBytes: number;
+  mrrCents: number;
+  arrCents: number;
+  paidUsers: number;
+  conversionRatePct: number;
   planDistribution: { plan: string; count: number }[];
   dailyGenerations: { date: string; count: number }[];
+}
+
+function formatCents(cents: number): string {
+  const dollars = cents / 100;
+  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}k`;
+  return `$${dollars.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 interface FunnelData {
@@ -145,9 +156,40 @@ export function AdminOverviewClient() {
 
   return (
     <div>
+      {/* Revenue Cards */}
+      <div className="mb-6">
+        <h2 className="text-xs font-semibold text-text-dim uppercase tracking-widest mb-3">Revenue</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="rounded-lg border border-border-subtle bg-surface p-4">
+            <div className="text-2xl font-bold text-text-primary">
+              {stats.mrrCents > 0 ? formatCents(stats.mrrCents) : '—'}
+            </div>
+            <div className="text-xs text-text-muted mt-1">MRR</div>
+          </div>
+          <div className="rounded-lg border border-border-subtle bg-surface p-4">
+            <div className="text-2xl font-bold text-text-primary">
+              {stats.arrCents > 0 ? formatCents(stats.arrCents) : '—'}
+            </div>
+            <div className="text-xs text-text-muted mt-1">ARR</div>
+          </div>
+          <div className="rounded-lg border border-border-subtle bg-surface p-4">
+            <div className="text-2xl font-bold text-text-primary">{stats.paidUsers}</div>
+            <div className="text-xs text-text-muted mt-1">Paid Users</div>
+          </div>
+          <div className="rounded-lg border border-border-subtle bg-surface p-4">
+            <div className="text-2xl font-bold text-text-primary">{stats.conversionRatePct}%</div>
+            <div className="text-xs text-text-muted mt-1">Free → Paid</div>
+          </div>
+        </div>
+      </div>
+
       {/* Stat Cards */}
+      <div className="mb-4">
+        <h2 className="text-xs font-semibold text-text-dim uppercase tracking-widest mb-3">Usage</h2>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
         <StatCard value={stats.totalUsers.toLocaleString()} label="Total Users" />
+        <StatCard value={`+${stats.newUsersThisMonth}`} label="New This Month" />
         <StatCard value={stats.generationsThisMonth.toLocaleString()} label="Generations This Month" />
         <StatCard value={stats.generationsToday.toLocaleString()} label="Generations Today" />
         <StatCard value={stats.activeUsersLast7d.toLocaleString()} label="Active Users (7d)" />

@@ -21,6 +21,7 @@ interface User {
   first_error_message: string | null;
   used_input_types: string[] | null;
   has_created_template: boolean;
+  health_score: number | null;
 }
 
 type Stage =
@@ -29,6 +30,7 @@ type Stage =
   | 'has_key_no_gen'
   | 'has_gen'
   | 'active_7d'
+  | 'at_risk'
   | 'churned_30d';
 
 function timeAgo(date: string | null): string {
@@ -57,6 +59,13 @@ function formatDate(date: string | null): string {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+function healthBadge(score: number | null): { label: string; className: string } {
+  if (score === null || score === undefined) return { label: '—', className: 'text-text-dim' };
+  if (score >= 60) return { label: `${score}`, className: 'text-green-400 font-semibold' };
+  if (score >= 30) return { label: `${score}`, className: 'text-yellow-400 font-semibold' };
+  return { label: `${score}`, className: 'text-red-400 font-semibold' };
 }
 
 function successRate(u: User): string {
@@ -131,6 +140,7 @@ export function UsersClient() {
           <option value="has_key_no_gen">Has key, no generation</option>
           <option value="has_gen">Has generated</option>
           <option value="active_7d">Active last 7d</option>
+          <option value="at_risk">At risk (quiet 7–30d)</option>
           <option value="churned_30d">Churned (silent 30d+)</option>
         </select>
         <select
@@ -159,6 +169,7 @@ export function UsersClient() {
               <th className="text-right px-4 py-3 text-text-muted font-medium">Gens</th>
               <th className="text-right px-4 py-3 text-text-muted font-medium">Success</th>
               <th className="text-right px-4 py-3 text-text-muted font-medium">Keys</th>
+              <th className="text-right px-4 py-3 text-text-muted font-medium" title="0–100: key(+20), gen(+20), 80%+ success(+20), active 7d(+40), silent 30d(-30)">Health</th>
               <th className="text-left px-4 py-3 text-text-muted font-medium">Time → 1st gen</th>
               <th className="text-left px-4 py-3 text-text-muted font-medium">Signed Up</th>
               <th className="text-left px-4 py-3 text-text-muted font-medium">Last Active</th>
@@ -169,13 +180,13 @@ export function UsersClient() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-text-dim">
+                <td colSpan={11} className="px-4 py-8 text-center text-text-dim">
                   Loading...
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-text-dim">
+                <td colSpan={11} className="px-4 py-8 text-center text-text-dim">
                   No users found
                 </td>
               </tr>
@@ -218,6 +229,9 @@ export function UsersClient() {
                   </td>
                   <td className="px-4 py-3 text-right text-text-muted">{successRate(u)}</td>
                   <td className="px-4 py-3 text-right text-text-muted">{u.key_count}</td>
+                  <td className="px-4 py-3 text-right text-xs">
+                    {(() => { const b = healthBadge(u.health_score); return <span className={b.className}>{b.label}</span>; })()}
+                  </td>
                   <td className="px-4 py-3 text-text-dim text-xs">
                     {formatDuration(u.time_to_first_gen_sec)}
                   </td>

@@ -11,7 +11,8 @@ type FunnelStage =
   | 'has_key_no_gen'
   | 'has_gen'
   | 'active_7d'
-  | 'churned_30d';
+  | 'churned_30d'
+  | 'at_risk';
 
 function stageClause(stage: FunnelStage): string {
   switch (stage) {
@@ -25,6 +26,9 @@ function stageClause(stage: FunnelStage): string {
       return `g.last_generation >= NOW() - INTERVAL '7 days'`;
     case 'churned_30d':
       return `g.gen_count > 0 AND g.last_generation < NOW() - INTERVAL '30 days'`;
+    case 'at_risk':
+      // Generated before but went quiet for 7-30 days — warming up to churn
+      return `g.gen_count > 0 AND g.last_generation >= NOW() - INTERVAL '30 days' AND g.last_generation < NOW() - INTERVAL '7 days'`;
     case 'all':
     default:
       return `TRUE`;
@@ -85,7 +89,14 @@ export async function GET(request: NextRequest) {
       g.first_status                    AS first_gen_status,
       g.first_error                     AS first_error_message,
       g.input_types                     AS used_input_types,
-      CASE WHEN t.tpl_count > 0 THEN TRUE ELSE FALSE END AS has_created_template
+      CASE WHEN t.tpl_count > 0 THEN TRUE ELSE FALSE END AS has_created_template,
+      LEAST(100, GREATEST(0,
+        CASE WHEN k.key_count > 0                                                       THEN 20 ELSE 0 END +
+        CASE WHEN g.gen_count > 0                                                       THEN 20 ELSE 0 END +
+        CASE WHEN g.gen_count > 0 AND (g.success_count::float / g.gen_count) >= 0.8    THEN 20 ELSE 0 END +
+        CASE WHEN g.last_generation >= NOW() - INTERVAL '7 days'                        THEN 40 ELSE 0 END +
+        CASE WHEN g.gen_count > 0 AND g.last_generation < NOW() - INTERVAL '30 days'   THEN -30 ELSE 0 END
+      ))::int                           AS health_score
     FROM users u
     LEFT JOIN (
       SELECT
