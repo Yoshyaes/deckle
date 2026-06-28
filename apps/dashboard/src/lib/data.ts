@@ -42,14 +42,37 @@ export async function getCurrentUser() {
 
   if (newUser) return newUser;
 
-  // Race condition: another request may have inserted — re-fetch
-  const [retried] = await db
+  // onConflictDoNothing() returned nothing — two possible causes:
+  // (a) Race condition: another request inserted this clerkId concurrently.
+  // (b) Email collision: this email belongs to a row with a DIFFERENT clerkId
+  //     (e.g. user previously signed in via GitHub, now using Google OAuth with
+  //     the same email address). onConflictDoNothing() silently drops the insert.
+  const [byClerkId] = await db
     .select()
     .from(users)
     .where(eq(users.clerkId, clerkId))
     .limit(1);
 
-  return retried || null;
+  if (byClerkId) return byClerkId;
+
+  // Email collision path: find the existing record and link this clerkId to it
+  // so the user can sign in with either OAuth provider going forward.
+  const [byEmail] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  if (byEmail) {
+    const [updated] = await db
+      .update(users)
+      .set({ clerkId })
+      .where(eq(users.id, byEmail.id))
+      .returning();
+    return updated || byEmail;
+  }
+
+  return null;
 }
 
 /**

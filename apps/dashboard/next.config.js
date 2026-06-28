@@ -29,15 +29,18 @@ const cspDirectives = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   // next/font subsets fonts at build time but Clerk loads from gstatic.
   "font-src 'self' data: https://fonts.gstatic.com",
-  // Avatars come from img.clerk.com; we also keep data: for inline icons.
-  "img-src 'self' data: blob: https://img.clerk.com https://clerk.getdeckle.dev https://*.clerk.accounts.dev",
+  // Avatars come from img.clerk.com; *.clerk.com covers other Clerk-served images
+  // (e.g. static.clerk.com for UI assets). data: kept for inline icons.
+  "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com https://clerk.getdeckle.dev https://*.clerk.accounts.dev",
   // The dashboard hits its own /api/*, the public API, and Clerk's FAPI
   // (clerk.getdeckle.dev in production, *.clerk.accounts.dev in dev).
   "connect-src 'self' https://api.getdeckle.dev https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://*.clerk.com https://clerk-telemetry.com https://challenges.cloudflare.com",
   // Workers (Clerk uses Web Workers in some flows).
   "worker-src 'self' blob:",
   // Block all <frame>/<iframe> src by default; Stripe billing portal + Clerk need exceptions.
-  "frame-src 'self' https://*.stripe.com https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://challenges.cloudflare.com",
+  // accounts.google.com is required for Google OAuth: Clerk's SignIn component opens
+  // Google's consent screen in a frame/popup during the social-login flow.
+  "frame-src 'self' https://*.stripe.com https://clerk.getdeckle.dev https://*.clerk.accounts.dev https://challenges.cloudflare.com https://accounts.google.com",
 ];
 
 const securityHeaders = [
@@ -62,6 +65,11 @@ const nextConfig = {
       {
         source: '/(.*)',
         headers: securityHeaders,
+      },
+      {
+        // Allow Clerk's SSO callback pages to be framed during OAuth handshake
+        source: '/(sign-in|sign-up)/sso-callback(.*)',
+        headers: [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }],
       },
     ];
   },
