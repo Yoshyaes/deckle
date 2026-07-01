@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import { DM_Sans, JetBrains_Mono } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
 import { ToastProvider } from '@/components/ui/toast';
 import './globals.css';
 
@@ -24,6 +25,7 @@ export default function RootLayout({
       <html lang="en" className={`${dmSans.variable} ${jetbrainsMono.variable}`}>
         <body className="font-sans antialiased">
           <ToastProvider>{children}</ToastProvider>
+          <Analytics />
         </body>
       </html>
     );
@@ -65,6 +67,7 @@ export default function RootLayout({
       <html lang="en" className={`${dmSans.variable} ${jetbrainsMono.variable}`}>
         <body className="font-sans antialiased">
           <ToastProvider>{children}</ToastProvider>
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>
