@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   description:
     'Generate pixel-perfect PDFs from HTML, React, or templates with one API call. The developer-first PDF generation platform.',
   metadataBase: new URL('https://getdeckle.dev'),
+  alternates: {
+    canonical: '/',
+  },
   icons: {
     icon: [
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },

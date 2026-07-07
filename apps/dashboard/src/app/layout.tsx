@@ -10,6 +10,10 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jet
 export const metadata: Metadata = {
   title: 'Deckle Dashboard',
   description: 'Manage your PDF generation API',
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 const DEV_MODE = process.env.NODE_ENV === 'development' && process.env.DECKLE_DEV_BYPASS === 'true';

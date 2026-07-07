@@ -4,6 +4,9 @@ import { SectionWrapper } from '@/components/ui/section-wrapper';
 export const metadata: Metadata = {
   title: 'Status — Deckle',
   description: 'Live operational status for the Deckle PDF generation API.',
+  alternates: {
+    canonical: '/status',
+  },
 };
 
 export default function StatusPage() {

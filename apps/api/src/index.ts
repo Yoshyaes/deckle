@@ -56,6 +56,7 @@ app.use('*', securityHeadersMiddleware);
 app.use('/v1/starter-templates/*', ipRateLimitMiddleware);
 
 // Public routes
+app.get('/robots.txt', (c) => c.text('User-agent: *\nDisallow: /\n'));
 app.route('/health', healthRoutes);
 app.route('/webhooks', webhookRoutes);
 app.route('/v1/billing/webhooks', billingWebhookApp);

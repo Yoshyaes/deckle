@@ -6,6 +6,9 @@ import { Card } from '@/components/ui/card';
 export const metadata: Metadata = {
   title: 'Contact — Deckle',
   description: 'Get in touch about Deckle — sales, support, security, or just to say hello.',
+  alternates: {
+    canonical: '/contact',
+  },
 };
 
 const CHANNELS = [

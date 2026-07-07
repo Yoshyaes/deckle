@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: 'Data Processing Agreement — Deckle',
   description:
     'How to obtain a Data Processing Agreement (DPA) for Deckle — required for EU customer onboarding under GDPR.',
+  alternates: {
+    canonical: '/dpa',
+  },
 };
 
 const LAST_UPDATED = '2026-05-20';

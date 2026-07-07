@@ -4,6 +4,9 @@ import { SectionWrapper } from '@/components/ui/section-wrapper';
 export const metadata: Metadata = {
   title: 'Terms of Service — Deckle',
   description: 'Deckle terms of service.',
+  alternates: {
+    canonical: '/terms',
+  },
 };
 
 const LAST_UPDATED = '2026-05-20';

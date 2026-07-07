@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: 'Security — Deckle',
   description:
     'How Deckle protects your data: bcrypt-hashed API keys, signed webhooks, isolated rendering, and a published vulnerability-disclosure policy.',
+  alternates: {
+    canonical: '/security',
+  },
 };
 
 const PILLARS = [

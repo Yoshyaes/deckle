@@ -7,6 +7,9 @@ import { getAllPosts } from '@/lib/blog';
 export const metadata: Metadata = {
   title: 'Blog',
   description: 'Tutorials, guides, and insights on PDF generation for developers.',
+  alternates: {
+    canonical: '/blog',
+  },
 };
 
 export default async function BlogIndex() {

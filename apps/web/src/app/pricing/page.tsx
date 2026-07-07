@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   title: 'Pricing — Deckle',
   description:
     'Simple, transparent pricing for the Deckle PDF generation API. Free tier with 1,000 PDFs/month, paid plans from $29.',
+  alternates: {
+    canonical: '/pricing',
+  },
 };
 
 const tiers = [

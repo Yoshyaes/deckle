@@ -4,6 +4,9 @@ import { SectionWrapper } from '@/components/ui/section-wrapper';
 export const metadata: Metadata = {
   title: 'Privacy Policy — Deckle',
   description: 'How Deckle handles your data.',
+  alternates: {
+    canonical: '/privacy',
+  },
 };
 
 const LAST_UPDATED = '2026-05-20';
