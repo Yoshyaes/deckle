@@ -8,13 +8,14 @@
     "start": "next start -p 3003"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
+    "framer-motion": "^11.0.0",
+    "gray-matter": "^4.0.3",
+    "lucide-react": "^0.363.0",
     "next": "^14.2.0",
+    "next-mdx-remote": "^6.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "framer-motion": "^11.0.0",
-    "lucide-react": "^0.363.0",
-    "next-mdx-remote": "^6.0.0",
-    "gray-matter": "^4.0.3",
     "shiki": "^1.0.0"
   },
   "devDependencies": {
