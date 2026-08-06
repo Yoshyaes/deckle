@@ -13,6 +13,7 @@
   "dependencies": {
     "@clerk/nextjs": "^5",
     "@neondatabase/serverless": "^0.9.5",
+    "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^2.4.3",
     "dompurify": "^3.2.4",
     "drizzle-orm": "^0.30.10",
